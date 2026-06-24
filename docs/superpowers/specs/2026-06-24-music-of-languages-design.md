@@ -162,7 +162,9 @@ interface, configured per run — not assumptions baked into the pipeline.
 - **Phase 0 — Spike & method selection** *(notebooks + literature review)*
   Scaffold repo; collect a small seed set spanning known rhythm classes; implement the first
   candidate feature methods in notebooks; check which reproduce known typology.
-  **Gate: decide which feature method(s) and validation approach(es) to carry forward.**
+  **Outcome:** a working pipeline + harness, ONE validated baseline method (alignment-free
+  prosody), real data-sourcing experience, and a **research agenda** for the Feature Exploration
+  cycle below. (The full method-selection decision moves to that cycle.)
   **Seed languages (agreed):** English, German, Polish, French, Spanish, Italian, Greek, Finnish.
   **Data for Phase 0:** lightweight, *portable* ingest/clean **helpers** — just enough to fetch
   a few real-radio clips per seed language and clean them to usable speech (VAD + basic
@@ -171,8 +173,15 @@ interface, configured per run — not assumptions baked into the pipeline.
   stage boundaries Phase 1 will use, so Phase 1 hardens/scales in place. See the Phase 1 handoff
   notes (§12). Method evaluation runs on this realistic radio data.
 
+- **Phase 0.5 — Feature Exploration cycle** *(dedicated research round; its own brainstorm → spec → plan → execute)*
+  Reusing the Phase 0 harness, **implement and empirically compare additional feature methods** —
+  starting with pretrained **SSL embeddings** (XLS-R / VoxLingua107 ECAPA, inference-only), then
+  envelope-RNN and forced-alignment metrics as feasible — all behind the `FeatureExtractor`
+  interface, all validated against typology + language-family structure. **This is where the real
+  method-selection decision is made.** See `docs/feature-exploration-cycle.md`.
+
 - **Phase 1 — Thin end-to-end slice**
-  Harden the chosen extractor into the pipeline; run catalog→viz on the seed languages from
+  Harden the chosen extractor(s) into the pipeline; run catalog→viz on the seed languages from
   *real radio*; produce a first dendrogram + colored map. Proves the whole chain + data
   sourcing + cleaning + chosen robustness controls.
 
@@ -205,13 +214,13 @@ interface, configured per run — not assumptions baked into the pipeline.
 |---|---|
 | **Rhythm-metric instability** (Arvaniti) | Aggregate over many speakers/clips/times; report dispersion; validate vs reference structures (§7) |
 | **Radio confounds** (music, ads, jingles, single speaker, channel/codec) | VAD + music/speech filter + diarization in `clean`; multi-station, multi-time sampling |
-| **Method picks the wrong signal** (rate/content rather than "music") | Rate-normalize; method-selection gate in Phase 0 validated against known typology |
+| **Method picks the wrong signal** (rate/content rather than "music") | Rate-normalize; method selection in the Feature Exploration cycle, validated against typology + family trees + channel-confound checks |
 | **Storage growth on laptop** | Short clips, modest hours/language; `ephemeral` retention available |
 | **Legal/ToS for publication** | Deferred to pre-publish; retention abstraction supports switching to features-only |
 
 ## 11. Open questions (to resolve during exploration)
 
-- Which feature method(s) win Phase 0 — one, several, or a combination?
+- Which feature method(s) win the Feature Exploration cycle — one, several, or a fusion?
 - Which validation/robustness techniques prove most reliable?
 - Exact per-language sample budget (stations × clips × hours) to stabilize metrics.
 - Reference structures for validation (which family-tree / typology / lexical datasets).
@@ -219,5 +228,8 @@ interface, configured per run — not assumptions baked into the pipeline.
 
 ## 12. Related documents
 
+- **Phase 0 plan:** `docs/superpowers/plans/2026-06-24-phase0-exploration.md` — the baseline + harness build.
+- **Feature Exploration cycle brief:** `docs/feature-exploration-cycle.md` — what the dedicated
+  feature-research round (Phase 0.5) should do; where the real method decision is made.
 - **Phase 1 handoff notes:** `docs/phase1-handoff.md` — decisions & rationale from kickoff so the
-  agent planning Phase 1 (after the method-selection gate) doesn't reinvent the wheel.
+  agent planning Phase 1 (after the Feature Exploration cycle) doesn't reinvent the wheel.

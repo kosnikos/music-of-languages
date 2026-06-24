@@ -1,7 +1,7 @@
 # Phase 1 Handoff Notes — The Music of Languages
 
 **Purpose:** capture decisions and rationale from the project kickoff (2026-06-24) so the agent
-that plans **Phase 1** — *after* the Phase 0 method-selection gate — doesn't re-derive them.
+that plans **Phase 1** — *after* the Feature Exploration cycle (Phase 0.5) — doesn't re-derive them.
 Companion to the design spec: `docs/superpowers/specs/2026-06-24-music-of-languages-design.md`.
 
 This is intentionally light. Read the spec for full context; this doc only records the Phase-1-
@@ -9,10 +9,12 @@ relevant conclusions from the kickoff conversation.
 
 ## Where Phase 1 picks up
 
-Phase 0 (planned & executed separately) is **exploration-only**: implement candidate feature
-methods in notebooks, evaluate on the 8 seed languages, and **decide which feature method(s) to
-carry forward**. Phase 1 = harden that decision into the end-to-end pipeline and run it on real
-radio for the seed languages (catalog → ingest → clean → features → proximity → validate → viz).
+**Phase 0** stands up the pipeline + harness and validates ONE baseline method (alignment-free
+prosody). The **Feature Exploration cycle (Phase 0.5)** then implements & compares additional
+methods and **decides which feature method(s) to carry forward** (see
+`docs/feature-exploration-cycle.md`). **Phase 1** hardens that decision into the end-to-end
+pipeline and runs it on real radio for the seed languages
+(catalog → ingest → clean → features → proximity → validate → viz).
 
 ## Key insight: only the `features` stage is gated by Phase 0
 
@@ -29,7 +31,7 @@ Most of Phase 1 does **not** depend on the Phase 0 outcome:
 | `viz` (maps, dendrograms) | No — method-agnostic |
 
 So Phase 1 can build/scale catalog, ingest, clean, proximity, and viz largely independent of the
-Phase 0 result; only `features` finalization waits for the gate.
+feature-method decision; only `features` finalization waits for it (made in the Feature Exploration cycle).
 
 ## The "method ripple" (why Phase 1 wasn't finalized up front)
 
@@ -75,7 +77,7 @@ should **harden and scale them in place**:
 - Seed languages: English, German, Polish, French, Spanish, Italian, Greek, Finnish.
 - Legal/ToS/copyright deferred to pre-publication.
 
-## Open questions for Phase 1 (resolve after the gate)
+## Open questions for Phase 1 (resolve after the Feature Exploration cycle)
 
 - Which method(s) won — single or combined? → dictates `features` plus `clean`/`ingest` weight.
 - Distance metric + clustering choices appropriate to the chosen feature type.

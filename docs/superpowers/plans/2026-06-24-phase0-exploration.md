@@ -2,18 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stand up a minimal, modular Python codebase that fetches real-radio speech for 8 seed languages, extracts alignment-free prosody/rhythm features, and evaluates whether those features reproduce known rhythm typology — producing a written decision on which feature method(s) to carry into Phase 1.
+**Goal:** Stand up a minimal, modular Python codebase that fetches real-radio speech for 8 seed languages, extracts alignment-free prosody/rhythm features, and evaluates whether those features reproduce known rhythm typology — producing a validated baseline method, real data-sourcing experience, and a research agenda for the Feature Exploration cycle (where the full method decision is made).
 
-**Architecture:** A small `mol` package with focused modules behind a pluggable `FeatureExtractor` interface. Pure-math units (rhythm-metric formulas, aggregation, distances, validation) are fully unit-tested; audio-dependent units (F0, syllable nuclei, VAD) get deterministic-logic tests plus light synthetic-signal checks. Exploration and the gate decision live in notebooks + a findings doc, not in tested library code. Data ingestion/cleaning are deliberately *lightweight, portable helpers* (not the production pipeline — see `docs/phase1-handoff.md`).
+**Architecture:** A small `musiclang` package with focused modules behind a pluggable `FeatureExtractor` interface. Pure-math units (rhythm-metric formulas, aggregation, distances, validation) are fully unit-tested; audio-dependent units (F0, syllable nuclei, VAD) get deterministic-logic tests plus light synthetic-signal checks. Exploration and the gate decision live in notebooks + a findings doc, not in tested library code. Data ingestion/cleaning are deliberately *lightweight, portable helpers* (not the production pipeline — see `docs/phase1-handoff.md`).
 
 **Tech Stack:** Python 3.11+, numpy/pandas/scipy/scikit-learn, praat-parselmouth, librosa + soundfile, silero-vad (torch), requests (radio-browser.info API), matplotlib, pytest + pytest-mock.
 
 ## Global Constraints
 
 - **Python:** 3.11+.
-- **Package layout:** `src/`-layout, importable as `mol` (Music Of Languages). Installed editable: `pip install -e .`.
+- **Package layout:** `src/`-layout, importable as `musiclang` (Music Of Languages). Installed editable: `pip install -e .`.
 - **Primary feature axis:** prosody & melody, **alignment-free** (no forced alignment / no MFA in Phase 0).
-- **Modularity:** every feature method implements the `FeatureExtractor` ABC (`src/mol/features/base.py`).
+- **Modularity:** every feature method implements the `FeatureExtractor` ABC (`src/musiclang/features/base.py`).
 - **Proximity is continuous:** never assume discrete rhythm classes in code; classes are only a *validation reference*.
 - **Data helpers are prototypes:** keep `ingest`/`clean` minimal and behind stable signatures so Phase 1 hardens them in place. NOT in Phase 0: diarization, ad/jingle removal, scheduling/retries, scaling, the retention abstraction.
 - **Music avoidance in Phase 0:** prefer **talk/news** stations (tag-filtered) to minimize music; rely on VAD for speech extraction. Robust music removal is Phase 1.
@@ -27,30 +27,30 @@
 ```
 pyproject.toml                          # package metadata + pinned deps
 README.md                               # how to set up & run
-src/mol/__init__.py
-src/mol/config.py                       # seed languages, paths, constants
-src/mol/audio.py                        # load_audio, normalize_loudness
-src/mol/ingest/__init__.py
-src/mol/ingest/radio.py                 # find_stations, record_clip (radio-browser + ffmpeg)
-src/mol/clean/__init__.py
-src/mol/clean/vad.py                    # extract_speech (silero-vad) + merge logic
-src/mol/features/__init__.py
-src/mol/features/base.py                # FeatureExtractor ABC + FeatureVector type
-src/mol/features/rhythm_metrics.py      # PURE math: pct_v, delta, varco, npvi, rpvi
-src/mol/features/intervals.py           # automatic vocalic/consonantal interval detection
-src/mol/features/pitch.py               # F0 / intonation features (parselmouth)
-src/mol/features/speech_rate.py         # syllable-nuclei speech-rate (De Jong-Wempe style)
-src/mol/features/prosody_acoustic.py    # the alignment-free FeatureExtractor (assembles all)
-src/mol/features/aggregate.py           # per-language aggregation (mean + dispersion)
-src/mol/proximity/__init__.py
-src/mol/proximity/distance.py           # standardize, distance matrix, clustering, MDS
-src/mol/validation/__init__.py
-src/mol/validation/typology.py          # reference class labels/values + agreement metrics
+src/musiclang/__init__.py
+src/musiclang/config.py                       # seed languages, paths, constants
+src/musiclang/audio.py                        # load_audio, normalize_loudness
+src/musiclang/ingest/__init__.py
+src/musiclang/ingest/radio.py                 # find_stations, record_clip (radio-browser + ffmpeg)
+src/musiclang/clean/__init__.py
+src/musiclang/clean/vad.py                    # extract_speech (silero-vad) + merge logic
+src/musiclang/features/__init__.py
+src/musiclang/features/base.py                # FeatureExtractor ABC + FeatureVector type
+src/musiclang/features/rhythm_metrics.py      # PURE math: pct_v, delta, varco, npvi, rpvi
+src/musiclang/features/intervals.py           # automatic vocalic/consonantal interval detection
+src/musiclang/features/pitch.py               # F0 / intonation features (parselmouth)
+src/musiclang/features/speech_rate.py         # syllable-nuclei speech-rate (De Jong-Wempe style)
+src/musiclang/features/prosody_acoustic.py    # the alignment-free FeatureExtractor (assembles all)
+src/musiclang/features/aggregate.py           # per-language aggregation (mean + dispersion)
+src/musiclang/proximity/__init__.py
+src/musiclang/proximity/distance.py           # standardize, distance matrix, clustering, MDS
+src/musiclang/validation/__init__.py
+src/musiclang/validation/typology.py          # reference class labels/values + agreement metrics
 notebooks/01_explore_features.ipynb     # fetch sample, extract, plot rhythm space (deliverable)
 notebooks/02_validate_typology.ipynb    # typology agreement + dendrogram (deliverable)
 notebooks/03_heavy_methods_feasibility.ipynb  # MFA + embedding feasibility (deliverable)
 tests/test_*.py                         # one test module per source module
-docs/phase0-findings.md                 # THE GATE: method-selection decision (deliverable)
+docs/phase0-findings.md                 # baseline findings + exploration-cycle agenda (deliverable)
 data/                                    # gitignored audio + artifacts
 ```
 
@@ -59,18 +59,18 @@ data/                                    # gitignored audio + artifacts
 ### Task 1: Project scaffold, config, and smoke test
 
 **Files:**
-- Create: `pyproject.toml`, `README.md`, `src/mol/__init__.py`, `src/mol/config.py`
+- Create: `pyproject.toml`, `README.md`, `src/musiclang/__init__.py`, `src/musiclang/config.py`
 - Test: `tests/test_config.py`
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `mol.config.SEED_LANGUAGES` (`dict[str, LanguageSpec]`), `mol.config.DATA_DIR` (`pathlib.Path`), `mol.config.LanguageSpec` (dataclass with `name: str`, `iso639_1: str`, `radio_browser_lang: str`).
+- Produces: `musiclang.config.SEED_LANGUAGES` (`dict[str, LanguageSpec]`), `musiclang.config.DATA_DIR` (`pathlib.Path`), `musiclang.config.LanguageSpec` (dataclass with `name: str`, `iso639_1: str`, `radio_browser_lang: str`).
 
 - [ ] **Step 1: Create `pyproject.toml`**
 
 ```toml
 [project]
-name = "mol"
+name = "musiclang"
 version = "0.0.1"
 description = "The Music of Languages — prosody-based language proximity (Phase 0 exploration)"
 requires-python = ">=3.11"
@@ -102,7 +102,7 @@ where = ["src"]
 testpaths = ["tests"]
 ```
 
-- [ ] **Step 2: Create `src/mol/__init__.py`**
+- [ ] **Step 2: Create `src/musiclang/__init__.py`**
 
 ```python
 """The Music of Languages — Phase 0 exploration package."""
@@ -115,7 +115,7 @@ __version__ = "0.0.1"
 `tests/test_config.py`:
 
 ```python
-from mol import config
+from musiclang import config
 
 
 def test_eight_seed_languages_present():
@@ -141,9 +141,9 @@ def test_data_dir_is_path():
 - [ ] **Step 4: Run test to verify it fails**
 
 Run: `pytest tests/test_config.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.config'` (or ImportError).
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.config'` (or ImportError).
 
-- [ ] **Step 5: Implement `src/mol/config.py`**
+- [ ] **Step 5: Implement `src/musiclang/config.py`**
 
 ```python
 """Project-wide configuration: seed languages and paths."""
@@ -172,7 +172,7 @@ SEED_LANGUAGES: dict[str, LanguageSpec] = {
     "finnish": LanguageSpec("Finnish", "fi", "finnish"),
 }
 
-# Repo root is two parents up from this file (src/mol/config.py -> repo root).
+# Repo root is two parents up from this file (src/musiclang/config.py -> repo root).
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 DATA_DIR: Path = REPO_ROOT / "data"
 
@@ -191,7 +191,7 @@ Expected: 3 passed.
 ```markdown
 # The Music of Languages — Phase 0
 
-Exploration & method-selection for prosody-based language proximity.
+Baseline + harness for prosody-based language proximity (feeds the Feature Exploration cycle).
 See `docs/superpowers/specs/2026-06-24-music-of-languages-design.md` for the design.
 
 ## Setup (Windows PowerShell)
@@ -211,8 +211,8 @@ See `docs/superpowers/specs/2026-06-24-music-of-languages-design.md` for the des
 - [ ] **Step 8: Commit**
 
 ```bash
-git add pyproject.toml README.md src/mol/__init__.py src/mol/config.py tests/test_config.py
-git commit -m "feat: scaffold mol package with config and smoke test"
+git add pyproject.toml README.md src/musiclang/__init__.py src/musiclang/config.py tests/test_config.py
+git commit -m "feat: scaffold musiclang package with config and smoke test"
 ```
 
 ---
@@ -220,11 +220,11 @@ git commit -m "feat: scaffold mol package with config and smoke test"
 ### Task 2: Audio loading & loudness normalization
 
 **Files:**
-- Create: `src/mol/audio.py`
+- Create: `src/musiclang/audio.py`
 - Test: `tests/test_audio.py`
 
 **Interfaces:**
-- Consumes: `mol.config.TARGET_SAMPLE_RATE`.
+- Consumes: `musiclang.config.TARGET_SAMPLE_RATE`.
 - Produces:
   - `load_audio(path: str | Path, sr: int = TARGET_SAMPLE_RATE) -> np.ndarray` — mono float32 in [-1, 1].
   - `normalize_loudness(signal: np.ndarray, target_rms: float = 0.1) -> np.ndarray` — RMS-scaled copy; returns input unchanged if silent.
@@ -237,7 +237,7 @@ git commit -m "feat: scaffold mol package with config and smoke test"
 import numpy as np
 import soundfile as sf
 
-from mol import audio
+from musiclang import audio
 
 
 def test_normalize_loudness_sets_target_rms():
@@ -272,9 +272,9 @@ def test_load_audio_returns_mono_target_sr(tmp_path):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_audio.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.audio'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.audio'`.
 
-- [ ] **Step 3: Implement `src/mol/audio.py`**
+- [ ] **Step 3: Implement `src/musiclang/audio.py`**
 
 ```python
 """Audio loading and loudness normalization."""
@@ -286,7 +286,7 @@ from pathlib import Path
 import librosa
 import numpy as np
 
-from mol.config import TARGET_SAMPLE_RATE
+from musiclang.config import TARGET_SAMPLE_RATE
 
 
 def load_audio(path: str | Path, sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
@@ -311,7 +311,7 @@ Expected: 3 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/audio.py tests/test_audio.py
+git add src/musiclang/audio.py tests/test_audio.py
 git commit -m "feat: add audio loading and loudness normalization"
 ```
 
@@ -320,11 +320,11 @@ git commit -m "feat: add audio loading and loudness normalization"
 ### Task 3: VAD speech extraction (silero-vad)
 
 **Files:**
-- Create: `src/mol/clean/__init__.py`, `src/mol/clean/vad.py`
+- Create: `src/musiclang/clean/__init__.py`, `src/musiclang/clean/vad.py`
 - Test: `tests/test_vad.py`
 
 **Interfaces:**
-- Consumes: `mol.config.TARGET_SAMPLE_RATE`.
+- Consumes: `musiclang.config.TARGET_SAMPLE_RATE`.
 - Produces:
   - `merge_segments(segments: list[tuple[float, float]], gap: float = 0.2) -> list[tuple[float, float]]` — pure: merges (start, end) seconds closer than `gap`.
   - `total_speech_seconds(segments: list[tuple[float, float]]) -> float` — pure.
@@ -340,7 +340,7 @@ The pure helpers are the unit-tested core; `extract_speech` is exercised in the 
 ```python
 import numpy as np
 
-from mol.clean import vad
+from musiclang.clean import vad
 
 
 def test_merge_segments_joins_close_spans():
@@ -373,16 +373,16 @@ def test_concat_speech_picks_correct_samples():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_vad.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.clean.vad'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.clean.vad'`.
 
-- [ ] **Step 3: Implement `src/mol/clean/__init__.py` (empty) and `src/mol/clean/vad.py`**
+- [ ] **Step 3: Implement `src/musiclang/clean/__init__.py` (empty) and `src/musiclang/clean/vad.py`**
 
-`src/mol/clean/__init__.py`:
+`src/musiclang/clean/__init__.py`:
 
 ```python
 ```
 
-`src/mol/clean/vad.py`:
+`src/musiclang/clean/vad.py`:
 
 ```python
 """Voice-activity detection: extract speech spans with silero-vad.
@@ -396,7 +396,7 @@ from functools import lru_cache
 
 import numpy as np
 
-from mol.config import TARGET_SAMPLE_RATE
+from musiclang.config import TARGET_SAMPLE_RATE
 
 
 def merge_segments(
@@ -463,7 +463,7 @@ Expected: 5 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/clean/__init__.py src/mol/clean/vad.py tests/test_vad.py
+git add src/musiclang/clean/__init__.py src/musiclang/clean/vad.py tests/test_vad.py
 git commit -m "feat: add VAD speech extraction with tested span helpers"
 ```
 
@@ -472,7 +472,7 @@ git commit -m "feat: add VAD speech extraction with tested span helpers"
 ### Task 4: Radio ingest helper (radio-browser.info + ffmpeg)
 
 **Files:**
-- Create: `src/mol/ingest/__init__.py`, `src/mol/ingest/radio.py`
+- Create: `src/musiclang/ingest/__init__.py`, `src/musiclang/ingest/radio.py`
 - Test: `tests/test_radio.py`
 
 **Interfaces:**
@@ -490,7 +490,7 @@ Network (`requests`) and subprocess (`ffmpeg`) are mocked in unit tests.
 ```python
 from pathlib import Path
 
-from mol.ingest import radio
+from musiclang.ingest import radio
 
 
 class _FakeResponse:
@@ -553,16 +553,16 @@ def test_record_clip_builds_ffmpeg_command(tmp_path):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_radio.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.ingest.radio'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.ingest.radio'`.
 
-- [ ] **Step 3: Implement `src/mol/ingest/__init__.py` (empty) and `src/mol/ingest/radio.py`**
+- [ ] **Step 3: Implement `src/musiclang/ingest/__init__.py` (empty) and `src/musiclang/ingest/radio.py`**
 
-`src/mol/ingest/__init__.py`:
+`src/musiclang/ingest/__init__.py`:
 
 ```python
 ```
 
-`src/mol/ingest/radio.py`:
+`src/musiclang/ingest/radio.py`:
 
 ```python
 """Lightweight, portable radio ingest helper (Phase 0 prototype).
@@ -655,7 +655,7 @@ Expected: 2 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/ingest/__init__.py src/mol/ingest/radio.py tests/test_radio.py
+git add src/musiclang/ingest/__init__.py src/musiclang/ingest/radio.py tests/test_radio.py
 git commit -m "feat: add portable radio ingest helper (stations + ffmpeg capture)"
 ```
 
@@ -664,7 +664,7 @@ git commit -m "feat: add portable radio ingest helper (stations + ffmpeg capture
 ### Task 5: FeatureExtractor interface
 
 **Files:**
-- Create: `src/mol/features/__init__.py`, `src/mol/features/base.py`
+- Create: `src/musiclang/features/__init__.py`, `src/musiclang/features/base.py`
 - Test: `tests/test_features_base.py`
 
 **Interfaces:**
@@ -681,7 +681,7 @@ git commit -m "feat: add portable radio ingest helper (stations + ffmpeg capture
 import numpy as np
 import pytest
 
-from mol.features.base import FeatureExtractor, ConstantExtractor
+from musiclang.features.base import FeatureExtractor, ConstantExtractor
 
 
 def test_constant_extractor_implements_interface():
@@ -700,16 +700,16 @@ def test_feature_extractor_is_abstract():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_features_base.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.features.base'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.base'`.
 
-- [ ] **Step 3: Implement `src/mol/features/__init__.py` (empty) and `src/mol/features/base.py`**
+- [ ] **Step 3: Implement `src/musiclang/features/__init__.py` (empty) and `src/musiclang/features/base.py`**
 
-`src/mol/features/__init__.py`:
+`src/musiclang/features/__init__.py`:
 
 ```python
 ```
 
-`src/mol/features/base.py`:
+`src/musiclang/features/base.py`:
 
 ```python
 """The pluggable feature-extraction interface."""
@@ -758,7 +758,7 @@ Expected: 2 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/features/__init__.py src/mol/features/base.py tests/test_features_base.py
+git add src/musiclang/features/__init__.py src/musiclang/features/base.py tests/test_features_base.py
 git commit -m "feat: add pluggable FeatureExtractor interface"
 ```
 
@@ -767,7 +767,7 @@ git commit -m "feat: add pluggable FeatureExtractor interface"
 ### Task 6: Rhythm-metric math (pure functions)
 
 **Files:**
-- Create: `src/mol/features/rhythm_metrics.py`
+- Create: `src/musiclang/features/rhythm_metrics.py`
 - Test: `tests/test_rhythm_metrics.py`
 
 This is the most literature-faithful, fully deterministic unit. Formulas per Ramus et al. (1999), Grabe & Low (2002), Dellwo (2006).
@@ -789,7 +789,7 @@ import math
 
 import pytest
 
-from mol.features import rhythm_metrics as rm
+from musiclang.features import rhythm_metrics as rm
 
 
 def test_percent_v():
@@ -833,9 +833,9 @@ def test_single_interval_pvi_is_nan():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_rhythm_metrics.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.features.rhythm_metrics'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.rhythm_metrics'`.
 
-- [ ] **Step 3: Implement `src/mol/features/rhythm_metrics.py`**
+- [ ] **Step 3: Implement `src/musiclang/features/rhythm_metrics.py`**
 
 ```python
 """Duration-based rhythm metrics (pure functions).
@@ -903,7 +903,7 @@ Expected: 8 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/features/rhythm_metrics.py tests/test_rhythm_metrics.py
+git add src/musiclang/features/rhythm_metrics.py tests/test_rhythm_metrics.py
 git commit -m "feat: add duration-based rhythm metrics (pure, literature-faithful)"
 ```
 
@@ -912,13 +912,13 @@ git commit -m "feat: add duration-based rhythm metrics (pure, literature-faithfu
 ### Task 7: Automatic vocalic/consonantal interval detection
 
 **Files:**
-- Create: `src/mol/features/intervals.py`
+- Create: `src/musiclang/features/intervals.py`
 - Test: `tests/test_intervals.py`
 
 Alignment-free, approximate C/V segmentation. A frame is "vocalic" if it is voiced (F0 present) AND high-intensity relative to the clip; contiguous vocalic frames form vocalic intervals, the gaps between them (within speech) form consonantal intervals. This is the documented Phase-0 approximation the exploration evaluates (research: %V-style measures survive automatic segmentation).
 
 **Interfaces:**
-- Consumes: `mol.config.TARGET_SAMPLE_RATE`.
+- Consumes: `musiclang.config.TARGET_SAMPLE_RATE`.
 - Produces:
   - `frames_to_intervals(is_vocalic: list[bool], frame_step: float) -> tuple[list[float], list[float]]` — pure: returns (vocalic_intervals, consonantal_intervals) in seconds, where consonantal intervals are non-vocalic runs strictly *between* two vocalic runs.
   - `detect_intervals(signal: np.ndarray, sr: int = TARGET_SAMPLE_RATE) -> tuple[list[float], list[float]]` — uses parselmouth pitch + intensity to produce the boolean frame mask, then calls `frames_to_intervals`. (Integration; thin wrapper.)
@@ -930,7 +930,7 @@ Alignment-free, approximate C/V segmentation. A frame is "vocalic" if it is voic
 ```python
 import pytest
 
-from mol.features import intervals
+from musiclang.features import intervals
 
 
 def test_frames_to_intervals_basic():
@@ -958,9 +958,9 @@ def test_all_silence_yields_nothing():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_intervals.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.features.intervals'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.intervals'`.
 
-- [ ] **Step 3: Implement `src/mol/features/intervals.py`**
+- [ ] **Step 3: Implement `src/musiclang/features/intervals.py`**
 
 ```python
 """Alignment-free vocalic/consonantal interval detection (Phase 0 approximation)."""
@@ -970,7 +970,7 @@ from __future__ import annotations
 import numpy as np
 import parselmouth
 
-from mol.config import TARGET_SAMPLE_RATE
+from musiclang.config import TARGET_SAMPLE_RATE
 
 _FRAME_STEP = 0.01      # 10 ms analysis step
 _INTENSITY_PERCENTILE = 40  # frames below this percentile are treated as non-vocalic
@@ -1047,7 +1047,7 @@ Run: `.venv/Scripts/python -m pytest tests/test_intervals.py -v`
 Expected: 4 passed.
 
 ```bash
-git add src/mol/features/intervals.py tests/test_intervals.py
+git add src/musiclang/features/intervals.py tests/test_intervals.py
 git commit -m "feat: add alignment-free vocalic/consonantal interval detection"
 ```
 
@@ -1056,11 +1056,11 @@ git commit -m "feat: add alignment-free vocalic/consonantal interval detection"
 ### Task 8: Pitch / intonation features
 
 **Files:**
-- Create: `src/mol/features/pitch.py`
+- Create: `src/musiclang/features/pitch.py`
 - Test: `tests/test_pitch.py`
 
 **Interfaces:**
-- Consumes: `mol.config.TARGET_SAMPLE_RATE`.
+- Consumes: `musiclang.config.TARGET_SAMPLE_RATE`.
 - Produces: `pitch_features(signal: np.ndarray, sr: int = TARGET_SAMPLE_RATE) -> dict[str, float]` with keys
   `f0_mean, f0_std, f0_min, f0_max, f0_range, f0_slope` (Hz; computed over voiced frames; NaN-safe).
 
@@ -1071,7 +1071,7 @@ git commit -m "feat: add alignment-free vocalic/consonantal interval detection"
 ```python
 import numpy as np
 
-from mol.features import pitch
+from musiclang.features import pitch
 
 
 def test_pitch_features_constant_tone():
@@ -1096,9 +1096,9 @@ def test_pitch_features_silence_is_nan_safe():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_pitch.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.features.pitch'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.pitch'`.
 
-- [ ] **Step 3: Implement `src/mol/features/pitch.py`**
+- [ ] **Step 3: Implement `src/musiclang/features/pitch.py`**
 
 ```python
 """F0 / intonation features via parselmouth."""
@@ -1110,7 +1110,7 @@ import math
 import numpy as np
 import parselmouth
 
-from mol.config import TARGET_SAMPLE_RATE
+from musiclang.config import TARGET_SAMPLE_RATE
 
 
 def pitch_features(signal: np.ndarray, sr: int = TARGET_SAMPLE_RATE) -> dict[str, float]:
@@ -1145,7 +1145,7 @@ Expected: 2 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/features/pitch.py tests/test_pitch.py
+git add src/musiclang/features/pitch.py tests/test_pitch.py
 git commit -m "feat: add F0/intonation features"
 ```
 
@@ -1154,13 +1154,13 @@ git commit -m "feat: add F0/intonation features"
 ### Task 9: Speech-rate via syllable nuclei
 
 **Files:**
-- Create: `src/mol/features/speech_rate.py`
+- Create: `src/musiclang/features/speech_rate.py`
 - Test: `tests/test_speech_rate.py`
 
 Syllable-nuclei detection in the De Jong & Wempe (2009) spirit: intensity peaks that exceed neighbouring dips by a threshold and are voiced. The peak-picking logic is a pure function over an intensity contour and is unit-tested; the parselmouth wrapper is a thin integration layer.
 
 **Interfaces:**
-- Consumes: `mol.config.TARGET_SAMPLE_RATE`.
+- Consumes: `musiclang.config.TARGET_SAMPLE_RATE`.
 - Produces:
   - `count_nuclei(intensity_db: np.ndarray, voiced: np.ndarray, min_dip_db: float = 2.0) -> int` — pure.
   - `speech_rate_features(signal, sr=TARGET_SAMPLE_RATE) -> dict[str, float]` with keys
@@ -1173,7 +1173,7 @@ Syllable-nuclei detection in the De Jong & Wempe (2009) spirit: intensity peaks 
 ```python
 import numpy as np
 
-from mol.features import speech_rate
+from musiclang.features import speech_rate
 
 
 def test_count_nuclei_three_clear_peaks():
@@ -1199,9 +1199,9 @@ def test_count_nuclei_requires_min_dip():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_speech_rate.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.features.speech_rate'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.speech_rate'`.
 
-- [ ] **Step 3: Implement `src/mol/features/speech_rate.py`**
+- [ ] **Step 3: Implement `src/musiclang/features/speech_rate.py`**
 
 ```python
 """Speech-rate estimation via syllable-nuclei detection (De Jong & Wempe style)."""
@@ -1214,7 +1214,7 @@ import numpy as np
 import parselmouth
 from scipy.signal import find_peaks
 
-from mol.config import TARGET_SAMPLE_RATE
+from musiclang.config import TARGET_SAMPLE_RATE
 
 
 def count_nuclei(
@@ -1258,7 +1258,7 @@ Expected: 3 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/features/speech_rate.py tests/test_speech_rate.py
+git add src/musiclang/features/speech_rate.py tests/test_speech_rate.py
 git commit -m "feat: add syllable-nuclei speech-rate estimation"
 ```
 
@@ -1267,7 +1267,7 @@ git commit -m "feat: add syllable-nuclei speech-rate estimation"
 ### Task 10: Prosody-acoustic extractor (assembles the pieces)
 
 **Files:**
-- Create: `src/mol/features/prosody_acoustic.py`
+- Create: `src/musiclang/features/prosody_acoustic.py`
 - Test: `tests/test_prosody_acoustic.py`
 
 **Interfaces:**
@@ -1282,8 +1282,8 @@ git commit -m "feat: add syllable-nuclei speech-rate estimation"
 ```python
 import numpy as np
 
-from mol.features.base import FeatureExtractor
-from mol.features.prosody_acoustic import ProsodyAcousticExtractor
+from musiclang.features.base import FeatureExtractor
+from musiclang.features.prosody_acoustic import ProsodyAcousticExtractor
 
 EXPECTED_KEYS = {
     "f0_mean", "f0_std", "f0_min", "f0_max", "f0_range", "f0_slope",
@@ -1316,9 +1316,9 @@ def test_extract_returns_all_keys_as_floats():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_prosody_acoustic.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.features.prosody_acoustic'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.prosody_acoustic'`.
 
-- [ ] **Step 3: Implement `src/mol/features/prosody_acoustic.py`**
+- [ ] **Step 3: Implement `src/musiclang/features/prosody_acoustic.py`**
 
 ```python
 """The alignment-free prosody/rhythm FeatureExtractor (Phase 0 primary candidate).
@@ -1331,9 +1331,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from mol.config import TARGET_SAMPLE_RATE
-from mol.features import intervals, pitch, rhythm_metrics, speech_rate
-from mol.features.base import FeatureExtractor, FeatureVector
+from musiclang.config import TARGET_SAMPLE_RATE
+from musiclang.features import intervals, pitch, rhythm_metrics, speech_rate
+from musiclang.features.base import FeatureExtractor, FeatureVector
 
 
 class ProsodyAcousticExtractor(FeatureExtractor):
@@ -1365,7 +1365,7 @@ Expected: 2 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/features/prosody_acoustic.py tests/test_prosody_acoustic.py
+git add src/musiclang/features/prosody_acoustic.py tests/test_prosody_acoustic.py
 git commit -m "feat: assemble alignment-free prosody-acoustic extractor"
 ```
 
@@ -1374,7 +1374,7 @@ git commit -m "feat: assemble alignment-free prosody-acoustic extractor"
 ### Task 11: Per-language aggregation
 
 **Files:**
-- Create: `src/mol/features/aggregate.py`
+- Create: `src/musiclang/features/aggregate.py`
 - Test: `tests/test_aggregate.py`
 
 **Interfaces:**
@@ -1393,7 +1393,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from mol.features import aggregate
+from musiclang.features import aggregate
 
 
 def test_aggregate_language_mean_and_std_ignore_nan():
@@ -1423,9 +1423,9 @@ def test_build_language_table_shape_and_index():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_aggregate.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.features.aggregate'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.aggregate'`.
 
-- [ ] **Step 3: Implement `src/mol/features/aggregate.py`**
+- [ ] **Step 3: Implement `src/musiclang/features/aggregate.py`**
 
 ```python
 """Aggregate per-clip feature vectors into per-language rows (mean + dispersion)."""
@@ -1468,7 +1468,7 @@ Expected: 2 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/features/aggregate.py tests/test_aggregate.py
+git add src/musiclang/features/aggregate.py tests/test_aggregate.py
 git commit -m "feat: add per-language feature aggregation"
 ```
 
@@ -1477,7 +1477,7 @@ git commit -m "feat: add per-language feature aggregation"
 ### Task 12: Proximity utilities (distance matrix, clustering, MDS)
 
 **Files:**
-- Create: `src/mol/proximity/__init__.py`, `src/mol/proximity/distance.py`
+- Create: `src/musiclang/proximity/__init__.py`, `src/musiclang/proximity/distance.py`
 - Test: `tests/test_distance.py`
 
 **Interfaces:**
@@ -1496,7 +1496,7 @@ git commit -m "feat: add per-language feature aggregation"
 import numpy as np
 import pandas as pd
 
-from mol.proximity import distance
+from musiclang.proximity import distance
 
 
 def _toy():
@@ -1537,16 +1537,16 @@ def test_linkage_matrix_rows():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_distance.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.proximity.distance'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.proximity.distance'`.
 
-- [ ] **Step 3: Implement `src/mol/proximity/__init__.py` (empty) and `src/mol/proximity/distance.py`**
+- [ ] **Step 3: Implement `src/musiclang/proximity/__init__.py` (empty) and `src/musiclang/proximity/distance.py`**
 
-`src/mol/proximity/__init__.py`:
+`src/musiclang/proximity/__init__.py`:
 
 ```python
 ```
 
-`src/mol/proximity/distance.py`:
+`src/musiclang/proximity/distance.py`:
 
 ```python
 """Language proximity: standardization, distances, clustering, MDS embedding."""
@@ -1596,7 +1596,7 @@ Expected: 4 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mol/proximity/__init__.py src/mol/proximity/distance.py tests/test_distance.py
+git add src/musiclang/proximity/__init__.py src/musiclang/proximity/distance.py tests/test_distance.py
 git commit -m "feat: add proximity utilities (standardize, distance, linkage, MDS)"
 ```
 
@@ -1605,7 +1605,7 @@ git commit -m "feat: add proximity utilities (standardize, distance, linkage, MD
 ### Task 13: Typology reference & validation
 
 **Files:**
-- Create: `src/mol/validation/__init__.py`, `src/mol/validation/typology.py`
+- Create: `src/musiclang/validation/__init__.py`, `src/musiclang/validation/typology.py`
 - Test: `tests/test_typology.py`
 
 Reference rhythm-class labels for the seed languages, with verified nPVI values where available (Grabe & Low 2002). Validation asks: do stress-timed languages get higher computed vocalic nPVI than syllable-timed ones? Labels are intentionally conservative (Greek/Finnish marked `intermediate`) and meant to be revisited in exploration.
@@ -1624,11 +1624,11 @@ Reference rhythm-class labels for the seed languages, with verified nPVI values 
 ```python
 import pytest
 
-from mol.validation import typology
+from musiclang.validation import typology
 
 
 def test_reference_covers_seed_languages():
-    from mol.config import SEED_LANGUAGES
+    from musiclang.config import SEED_LANGUAGES
     assert set(typology.RHYTHM_CLASS) == set(SEED_LANGUAGES)
 
 
@@ -1650,16 +1650,16 @@ def test_spearman_against_reference_perfect_order():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `.venv/Scripts/python -m pytest tests/test_typology.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'mol.validation.typology'`.
+Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.validation.typology'`.
 
-- [ ] **Step 3: Implement `src/mol/validation/__init__.py` (empty) and `src/mol/validation/typology.py`**
+- [ ] **Step 3: Implement `src/musiclang/validation/__init__.py` (empty) and `src/musiclang/validation/typology.py`**
 
-`src/mol/validation/__init__.py`:
+`src/musiclang/validation/__init__.py`:
 
 ```python
 ```
 
-`src/mol/validation/typology.py`:
+`src/musiclang/validation/typology.py`:
 
 ```python
 """Reference rhythm typology for the seed languages + agreement metrics.
@@ -1733,7 +1733,7 @@ Run: `.venv/Scripts/python -m pytest -v`
 Expected: all tests pass.
 
 ```bash
-git add src/mol/validation/__init__.py src/mol/validation/typology.py tests/test_typology.py
+git add src/musiclang/validation/__init__.py src/musiclang/validation/typology.py tests/test_typology.py
 git commit -m "feat: add rhythm-typology reference and agreement metrics"
 ```
 
@@ -1760,12 +1760,12 @@ from __future__ import annotations
 
 import argparse
 
-from mol.audio import load_audio, normalize_loudness
-from mol.clean.vad import concat_speech, extract_speech, total_speech_seconds
-from mol.config import DATA_DIR, SEED_LANGUAGES, TARGET_SAMPLE_RATE
-from mol.features.aggregate import build_language_table
-from mol.features.prosody_acoustic import ProsodyAcousticExtractor
-from mol.ingest.radio import find_stations, record_clip
+from musiclang.audio import load_audio, normalize_loudness
+from musiclang.clean.vad import concat_speech, extract_speech, total_speech_seconds
+from musiclang.config import DATA_DIR, SEED_LANGUAGES, TARGET_SAMPLE_RATE
+from musiclang.features.aggregate import build_language_table
+from musiclang.features.prosody_acoustic import ProsodyAcousticExtractor
+from musiclang.ingest.radio import find_stations, record_clip
 
 
 def collect(clips_per_lang: int, clip_seconds: int) -> None:
@@ -1814,7 +1814,7 @@ If a language yields 0 clips, note it (station availability varies) and proceed;
 - [ ] **Step 3: Create `notebooks/01_explore_features.ipynb`** with cells that:
   1. `import pandas as pd, matplotlib.pyplot as plt` and load `data/lang_features.parquet`.
   2. Scatter `percent_v_mean` (x) vs `npvi_v_mean` (y), annotating each point with the language name — the classic rhythm-space plot.
-  3. Colour points by `mol.validation.typology.RHYTHM_CLASS`.
+  3. Colour points by `musiclang.validation.typology.RHYTHM_CLASS`.
   4. Markdown cell: observations — do stress-timed languages sit higher on `npvi_v`? Any obvious data-quality issues (NaNs, outliers)?
 
 - [ ] **Step 4: Commit**
@@ -1853,50 +1853,51 @@ git commit -m "feat: add typology-validation notebook"
 
 ---
 
-### Task 16: Heavy-method feasibility assessment
+### Task 16: Candidate-method feasibility assessment (feeds the Feature Exploration cycle)
 
 **Files:**
-- Create: `notebooks/03_heavy_methods_feasibility.ipynb`
+- Create: `notebooks/03_candidate_methods_feasibility.ipynb`
 
-**Deliverable (not TDD):** a written, evidence-based assessment of the two heavier candidate methods we deliberately did NOT implement, so the gate decision considers all three fairly.
+**Deliverable (not TDD):** a written, evidence-based assessment of the candidate methods NOT implemented in Phase 0, so the Feature Exploration cycle (Phase 0.5) starts with a clear, prioritized agenda. See `docs/feature-exploration-cycle.md`.
 
 - [ ] **Step 1: Create the notebook** with markdown + small code probes covering:
-  1. **Forced-alignment metrics (MFA):** what per-language models exist for the 8 seed languages, install/runtime cost on Windows, and whether transcripts are required. Probe: list MFA's available acoustic/dictionary models. Conclusion: infra weight vs. expected accuracy gain over the alignment-free %V/nPVI.
-  2. **Learned envelope embedding (Deloche-style):** data/compute needed to train an envelope+voicing RNN; whether a pretrained checkpoint exists; how its embeddings would feed `proximity`. Probe: estimate clips/hours needed.
-  3. A comparison table: method × (interpretability, infra cost, expected fidelity, blog-friendliness).
+  1. **Pretrained SSL embeddings (priority — cheap, inference-only):** XLS-R / wav2vec2 / HuBERT and VoxLingua107 ECAPA. Probe: load one model from HuggingFace, embed a couple of the collected clips, confirm the pooled-embedding shape and that cosine distance runs. Conclusion: this is the recommended FIRST method for the cycle (no training needed).
+  2. **Forced-alignment metrics (MFA):** what per-language models exist for the 8 seed languages, install/runtime cost on Windows, and whether transcripts are required. Probe: list MFA's available acoustic/dictionary models. Conclusion: infra weight vs. expected accuracy gain over the alignment-free %V/nPVI.
+  3. **Learned envelope embedding (Deloche-style):** data/compute needed to train an envelope+voicing RNN; whether a pretrained checkpoint exists; how its embeddings would feed `proximity`. Probe: estimate clips/hours needed.
+  4. A comparison table: method × (interpretability, infra cost, expected fidelity, blog-friendliness).
 
 - [ ] **Step 2: Commit**
 
 ```bash
-git add notebooks/03_heavy_methods_feasibility.ipynb
-git commit -m "docs: add heavy-method feasibility assessment notebook"
+git add notebooks/03_candidate_methods_feasibility.ipynb
+git commit -m "docs: add candidate-method feasibility assessment notebook"
 ```
 
 ---
 
-### Task 17: Phase 0 findings & method-selection decision (THE GATE)
+### Task 17: Phase 0 baseline findings & exploration-cycle agenda
 
 **Files:**
 - Create: `docs/phase0-findings.md`
 
-**Deliverable (not TDD):** the decision this whole phase exists to produce. This document is the hand-off into Phase 1 (alongside `docs/phase1-handoff.md`).
+**Deliverable (not TDD):** the baseline assessment + the prioritized research agenda that feeds the Feature Exploration cycle (Phase 0.5). This is NOT the final method decision — that's made in the cycle (`docs/feature-exploration-cycle.md`). Hands off alongside `docs/phase1-handoff.md`.
 
 - [ ] **Step 1: Write `docs/phase0-findings.md`** covering, with concrete numbers/figures from the notebooks:
   1. **Data coverage:** clips and clean-speech seconds obtained per seed language; which languages were thin/missing and why.
   2. **Feature results:** the rhythm-space plot; per-language `npvi_v`, `percent_v`, varcos.
   3. **Typology agreement:** `class_separation` and `spearman_against_reference` values; dendrogram/MDS interpretation; where it matched and where it didn't.
   4. **Confound observations:** evidence of speech-rate / speaker / station effects (the Arvaniti risk) seen in the dispersion (`*_std`) columns.
-  5. **Heavy-method assessment summary** (from Task 16).
-  6. **DECISION:** which feature method(s) to carry into Phase 1 — alignment-free alone, alignment-free + a heavier method, or a combination — with the evidence that justifies it.
+  5. **Candidate-method assessment summary** (from Task 16).
+  6. **BASELINE VERDICT & AGENDA:** how well the alignment-free baseline reproduces typology, and a prioritized list of which additional methods the Feature Exploration cycle should implement & compare first (pretrained SSL embeddings first), with the evidence. (The final method choice is the cycle's output, not this doc's.)
   7. **Recommended Phase 1 adjustments:** anything the data taught us (e.g. more clips/language, better station filtering, specific metrics to keep/drop).
 
-- [ ] **Step 2: Update the spec's open questions** — in `docs/superpowers/specs/2026-06-24-music-of-languages-design.md` §11, append a line linking the resolved decision: `- Method selection resolved in docs/phase0-findings.md (Phase 0 gate).`
+- [ ] **Step 2: Update the spec's open questions** — in `docs/superpowers/specs/2026-06-24-music-of-languages-design.md` §11, append: `- Phase 0 baseline findings + exploration agenda recorded in docs/phase0-findings.md.`
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add docs/phase0-findings.md docs/superpowers/specs/2026-06-24-music-of-languages-design.md
-git commit -m "docs: record Phase 0 findings and method-selection decision"
+git commit -m "docs: record Phase 0 baseline findings and exploration-cycle agenda"
 ```
 
 ---
@@ -1911,8 +1912,8 @@ git commit -m "docs: record Phase 0 findings and method-selection decision"
 - Validation against known typology (Arvaniti defense #2), kept as a reference not hard-wired → Task 13, 15. ✅
 - Minimal proximity (distance/cluster/MDS) needed to evaluate methods → Task 12. ✅
 - Seed languages (the agreed 8) → Task 1 config; used in Task 14. ✅
-- Method-selection gate as the phase output → Task 17. ✅
-- Consider all three candidate methods (impl. the light one; assess the heavy two) → Tasks 10 + 16. ✅
+- Phase 0 output = validated baseline + prioritized exploration agenda (final method decision deferred to the Feature Exploration cycle) → Task 17. ✅
+- Candidate methods considered (impl. the alignment-free baseline; assess SSL embeddings + heavier methods for the cycle) → Tasks 10 + 16. ✅
 - Storage = plain local disk, no retention abstraction (deferred) → Global Constraints + `data/` gitignored. ✅
 - NOT in Phase 0: diarization, ad removal, scaling, retention policy, colored maps → excluded by design; noted in handoff. ✅
 
