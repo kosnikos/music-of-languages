@@ -34,4 +34,7 @@ filterwarnings = [
     "ignore:'aifc' is deprecated:DeprecationWarning",
     "ignore:'audioop' is deprecated:DeprecationWarning",
     "ignore:'sunau' is deprecated:DeprecationWarning",
+    # sklearn MDS API churn (params still valid in the pinned sklearn; revisit on upgrade to 1.10). See Phase-1 tech debt.
+    "ignore:The default value of `init` will change:FutureWarning",
+    "ignore:The `dissimilarity` parameter is deprecated:FutureWarning",
 ]
