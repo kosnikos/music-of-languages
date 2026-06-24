@@ -23,6 +23,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-mock>=3.12", "jupyter>=1.0"]
+# SSL-embedding feasibility probe (Task 16 notebook 03); inference-only.
+feasibility = ["transformers>=4.40"]
 
 [build-system]
 requires = ["setuptools>=68"]
