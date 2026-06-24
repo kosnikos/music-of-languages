@@ -53,7 +53,7 @@ def detect_intervals(
     # Interpolate intensity to match pitch time grid (they may differ)
     intens_times = intensity.xs()
     intens_vals = intensity.values[0]
-    intens = np.interp(pitch_times, intens_times, intens_vals)
+    intens = np.interp(pitch_times, intens_times, intens_vals, left=0.0, right=0.0)
     voiced = f0 > 0
     if voiced.any():
         threshold = np.percentile(intens[voiced], _INTENSITY_PERCENTILE)
