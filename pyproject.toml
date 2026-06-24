@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.26",
     "pandas>=2.1",
+    "pyarrow>=14",  # parquet engine for pandas to_parquet/read_parquet (collector + notebooks)
     "scipy>=1.11",
     "scikit-learn>=1.4",
     "praat-parselmouth>=0.4.3",
