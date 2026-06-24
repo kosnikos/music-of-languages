@@ -20,6 +20,7 @@
 - **Seed languages (exact):** English, German, Polish, French, Spanish, Italian, Greek, Finnish.
 - **Storage:** plain local disk under `data/` (gitignored). No retention policy in Phase 0.
 - **Testing:** TDD. Pure functions get exact-value tests; audio functions get logic + synthetic-signal tests. Network/subprocess/model calls are mocked in unit tests.
+- **Feature provenance:** every feature-computing function MUST cite, in its docstring, a link to the authoritative source for its maths/reasoning — peer-reviewed/primary preferred, Wikipedia only as a last-resort fallback. Use a `Reference:` line with a URL. This applies to all current and future feature methods (it is a project-wide convention; see spec §9).
 - **Commits:** frequent, one per task minimum. Do not sign commits unless asked.
 
 ## File Structure
@@ -840,7 +841,14 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.rh
 ```python
 """Duration-based rhythm metrics (pure functions).
 
-References: Ramus, Nespor & Mehler (1999); Grabe & Low (2002); Dellwo (2006).
+Each function documents the primary source for its maths in its own docstring.
+General references (maths & reasoning):
+  - Ramus, Nespor & Mehler (1999), Cognition 73:265-292 — %V, ΔC, ΔV:
+    https://doi.org/10.1016/S0010-0277(99)00058-X
+  - Grabe & Low (2002), Papers in Lab Phonology 7 — nPVI, rPVI:
+    https://www.phon.ox.ac.uk/files/people/grabe/Grabe_Low.doc
+  - Dellwo (2006), "A Variation Coefficient for ΔC" — VarcoC/VarcoV:
+    https://www.lfsag.unito.it/sito_old/ritmo/varco_en.html
 All inputs are lists of interval durations in seconds. NaN is returned where a
 metric is undefined (too few intervals / empty input).
 """
@@ -852,7 +860,11 @@ import statistics
 
 
 def percent_v(vocalic: list[float], consonantal: list[float]) -> float:
-    """Percentage of total interval duration that is vocalic."""
+    """Percentage of total interval duration that is vocalic (%V).
+
+    Reference (maths & reasoning): Ramus, Nespor & Mehler (1999), Cognition 73:265-292,
+    https://doi.org/10.1016/S0010-0277(99)00058-X
+    """
     total = sum(vocalic) + sum(consonantal)
     if total <= 0:
         return math.nan
@@ -860,14 +872,21 @@ def percent_v(vocalic: list[float], consonantal: list[float]) -> float:
 
 
 def delta(intervals: list[float]) -> float:
-    """Population standard deviation of interval durations (ΔC / ΔV)."""
+    """Population standard deviation of interval durations (ΔC / ΔV).
+
+    Reference: Ramus, Nespor & Mehler (1999), https://doi.org/10.1016/S0010-0277(99)00058-X
+    """
     if len(intervals) < 2:
         return math.nan
     return statistics.pstdev(intervals)
 
 
 def varco(intervals: list[float]) -> float:
-    """Rate-normalized delta: 100 * SD / mean (coefficient of variation)."""
+    """Rate-normalized delta: 100 * SD / mean (coefficient of variation).
+
+    Reference: Dellwo (2006), "Rhythm and Speech Rate: A Variation Coefficient for ΔC";
+    maths explained at https://www.lfsag.unito.it/sito_old/ritmo/varco_en.html
+    """
     if len(intervals) < 2:
         return math.nan
     mean = statistics.fmean(intervals)
@@ -877,7 +896,11 @@ def varco(intervals: list[float]) -> float:
 
 
 def npvi(intervals: list[float]) -> float:
-    """Normalized Pairwise Variability Index (rate-normalized)."""
+    """Normalized Pairwise Variability Index (rate-normalized).
+
+    Reference (formula): Grabe & Low (2002), Papers in Lab Phonology 7,
+    https://www.phon.ox.ac.uk/files/people/grabe/Grabe_Low.doc
+    """
     if len(intervals) < 2:
         return math.nan
     pairs = zip(intervals[:-1], intervals[1:])
@@ -888,7 +911,10 @@ def npvi(intervals: list[float]) -> float:
 
 
 def rpvi(intervals: list[float]) -> float:
-    """Raw Pairwise Variability Index (not rate-normalized)."""
+    """Raw Pairwise Variability Index (not rate-normalized).
+
+    Reference: Grabe & Low (2002), https://www.phon.ox.ac.uk/files/people/grabe/Grabe_Low.doc
+    """
     if len(intervals) < 2:
         return math.nan
     diffs = [abs(a - b) for a, b in zip(intervals[:-1], intervals[1:])]
@@ -963,7 +989,14 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.in
 - [ ] **Step 3: Implement `src/musiclang/features/intervals.py`**
 
 ```python
-"""Alignment-free vocalic/consonantal interval detection (Phase 0 approximation)."""
+"""Alignment-free vocalic/consonantal interval detection (Phase 0 approximation).
+
+The vocalic/consonantal interval concept these feed (%V, ΔV, ΔC, PVIs) comes from
+Ramus, Nespor & Mehler (1999): https://doi.org/10.1016/S0010-0277(99)00058-X
+Our segmentation is an automatic approximation (voicing + relative intensity), inspired
+by segmentation-free rhythm extraction (Galves et al. 2002); canonical studies segment
+C/V intervals by hand or via forced alignment.
+"""
 
 from __future__ import annotations
 
@@ -1101,7 +1134,15 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.pi
 - [ ] **Step 3: Implement `src/musiclang/features/pitch.py`**
 
 ```python
-"""F0 / intonation features via parselmouth."""
+"""F0 / intonation features via parselmouth.
+
+F0 is estimated with Praat's autocorrelation pitch algorithm:
+Boersma (1993), "Accurate short-term analysis of the fundamental frequency and the
+harmonics-to-noise ratio of a sampled sound", Proceedings IFA 17:97-110,
+https://www.fon.hum.uva.nl/paul/papers/Proceedings_1993.pdf
+Returned values are summary statistics of that F0 contour (mean/SD/min/max/range, plus
+f0_slope = least-squares linear trend of F0 over time).
+"""
 
 from __future__ import annotations
 
@@ -1204,7 +1245,12 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.sp
 - [ ] **Step 3: Implement `src/musiclang/features/speech_rate.py`**
 
 ```python
-"""Speech-rate estimation via syllable-nuclei detection (De Jong & Wempe style)."""
+"""Speech-rate estimation via syllable-nuclei detection.
+
+Reference (method & maths): De Jong & Wempe (2009), "Praat script to detect syllable
+nuclei and measure speech rate automatically", Behavior Research Methods 41:385-390,
+https://www.fon.hum.uva.nl/archive/2009/2009-brm-JongWempe.pdf
+"""
 
 from __future__ import annotations
 
@@ -1325,6 +1371,10 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'musiclang.features.pr
 
 Inspired by the DisVoice prosody feature set, but self-contained (parselmouth +
 our own rhythm metrics) so features stay tweakable during exploration.
+
+Per-feature maths/references live in the source modules each feature comes from:
+pitch.py (F0/intonation), speech_rate.py (tempo), and intervals.py + rhythm_metrics.py
+(%V, ΔC/ΔV, Varcos, nPVI/rPVI). DisVoice reference: https://github.com/jcvasquezc/DisVoice
 """
 
 from __future__ import annotations
@@ -1912,6 +1962,7 @@ git commit -m "docs: record Phase 0 baseline findings and exploration-cycle agen
 - Validation against known typology (Arvaniti defense #2), kept as a reference not hard-wired → Task 13, 15. ✅
 - Minimal proximity (distance/cluster/MDS) needed to evaluate methods → Task 12. ✅
 - Seed languages (the agreed 8) → Task 1 config; used in Task 14. ✅
+- Feature provenance: each feature function's docstring carries a primary-source URL for its maths → Tasks 6–10. ✅
 - Phase 0 output = validated baseline + prioritized exploration agenda (final method decision deferred to the Feature Exploration cycle) → Task 17. ✅
 - Candidate methods considered (impl. the alignment-free baseline; assess SSL embeddings + heavier methods for the cycle) → Tasks 10 + 16. ✅
 - Storage = plain local disk, no retention abstraction (deferred) → Global Constraints + `data/` gitignored. ✅

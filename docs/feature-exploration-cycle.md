@@ -79,3 +79,8 @@ supersedes the Phase 0 baseline recommendation and finalizes the `features`-stag
 - New `FeatureExtractor` implementations in `src/musiclang/features/` (at least the SSL one).
 - Method-comparison notebooks.
 - The decision doc (e.g. `docs/feature-exploration-findings.md`).
+
+**Convention reminder:** every new feature-computing function must cite, in its docstring, a link to
+the authoritative source for its maths/reasoning (scientific preferred; Wikipedia fallback). This is
+a project-wide rule — see spec §9. For SSL embeddings, link the model/paper (e.g. the wav2vec 2.0 /
+XLS-R / VoxLingua107 papers) and the pooling/distance choice.

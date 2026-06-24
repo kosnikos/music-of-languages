@@ -207,6 +207,9 @@ interface, configured per run — not assumptions baked into the pipeline.
 - **Artifacts:** parquet for tabular data/manifests; per-stage cached directories keyed by config.
 - **Config-driven:** which languages, which feature extractor(s), which validation steps,
   retention policy — all configuration, not code edits.
+- **Feature provenance:** every feature-computing function documents, in its docstring, a link to
+  the authoritative source for its maths/reasoning (peer-reviewed/primary preferred; Wikipedia only
+  as a last-resort fallback). Applies to all feature methods in every phase.
 
 ## 10. Key risks
 

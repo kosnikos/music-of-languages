@@ -76,6 +76,8 @@ should **harden and scale them in place**:
   hard-wired.
 - Seed languages: English, German, Polish, French, Spanish, Italian, Greek, Finnish.
 - Legal/ToS/copyright deferred to pre-publication.
+- **Feature provenance convention:** every feature-computing function documents a link to its maths
+  source in its docstring (scientific preferred, Wikipedia fallback) — see spec §9.
 
 ## Open questions for Phase 1 (resolve after the Feature Exploration cycle)
 
