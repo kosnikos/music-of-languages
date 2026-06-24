@@ -164,6 +164,12 @@ interface, configured per run — not assumptions baked into the pipeline.
   candidate feature methods in notebooks; check which reproduce known typology.
   **Gate: decide which feature method(s) and validation approach(es) to carry forward.**
   **Seed languages (agreed):** English, German, Polish, French, Spanish, Italian, Greek, Finnish.
+  **Data for Phase 0:** lightweight, *portable* ingest/clean **helpers** — just enough to fetch
+  a few real-radio clips per seed language and clean them to usable speech (VAD + basic
+  music/speech filter + normalize). **Not** the production package (no diarization, ad removal,
+  scheduling, scaling, retention abstraction — those are Phase 1). Write them behind the same
+  stage boundaries Phase 1 will use, so Phase 1 hardens/scales in place. See the Phase 1 handoff
+  notes (§12). Method evaluation runs on this realistic radio data.
 
 - **Phase 1 — Thin end-to-end slice**
   Harden the chosen extractor into the pipeline; run catalog→viz on the seed languages from
@@ -210,3 +216,8 @@ interface, configured per run — not assumptions baked into the pipeline.
 - Exact per-language sample budget (stations × clips × hours) to stabilize metrics.
 - Reference structures for validation (which family-tree / typology / lexical datasets).
 - v2 regional data sourcing (region-tagged stations) and dialect-vs-language confounds.
+
+## 12. Related documents
+
+- **Phase 1 handoff notes:** `docs/phase1-handoff.md` — decisions & rationale from kickoff so the
+  agent planning Phase 1 (after the method-selection gate) doesn't reinvent the wheel.
