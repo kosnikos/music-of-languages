@@ -12,7 +12,10 @@ dependencies = [
     "librosa>=0.10",
     "soundfile>=0.12",
     "silero-vad>=5.1",
-    "torch>=2.2",
+    # torch 2.12.x +cpu fails to initialize on Windows (WinError 1114 on c10.dll); 2.7.x is verified-good.
+    # Cap below 2.8 and pin torchaudio to the same line (silero-vad imports torchaudio; versions must match).
+    "torch>=2.2,<2.8",
+    "torchaudio>=2.2,<2.8",
     "requests>=2.31",
     "matplotlib>=3.8",
 ]
