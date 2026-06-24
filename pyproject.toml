@@ -1,0 +1,31 @@
+[project]
+name = "musiclang"
+version = "0.0.1"
+description = "The Music of Languages — prosody-based language proximity (Phase 0 exploration)"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+    "praat-parselmouth>=0.4.3",
+    "librosa>=0.10",
+    "soundfile>=0.12",
+    "silero-vad>=5.1",
+    "torch>=2.2",
+    "requests>=2.31",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-mock>=3.12", "jupyter>=1.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
