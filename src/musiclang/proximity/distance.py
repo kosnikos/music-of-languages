@@ -10,7 +10,14 @@ from sklearn.manifold import MDS
 
 
 def standardize(df: pd.DataFrame) -> pd.DataFrame:
-    """Z-score each numeric column; drop columns that are all-NaN or constant."""
+    """Z-score each numeric column (mean 0, unit sample-std, ddof=1).
+
+    Drops any column containing a NaN so the standardized frame stays dense and
+    usable by `distance_matrix`/`pdist` (which cannot handle NaNs), and drops
+    constant columns (zero std) to avoid division by zero. Dropping whole columns
+    on any NaN is a deliberate Phase-0 simplification; Phase 1 should impute
+    missing values instead of dropping the feature.
+    """
     numeric = df.select_dtypes("number").dropna(axis=1, how="any")
     std = numeric.std(axis=0, ddof=1)
     numeric = numeric.loc[:, std > 0]
