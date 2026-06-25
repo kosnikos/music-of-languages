@@ -13,9 +13,9 @@ This creates `.venv` on a uv-managed Python (version in `.python-version`) with 
 locked dependencies from `uv.lock`. torch/torchaudio are CPU builds pulled from the PyTorch
 CPU index (configured in `pyproject.toml`).
 
-> The project forces a uv-managed interpreter (`python-preference = "only-managed"`): the
-> system Anaconda Python on this machine makes torch fail to load (`OSError: WinError 1114`),
-> while a managed Python imports it cleanly.
+> The project forces a uv-managed interpreter (`python-preference = "only-managed"`):
+> Anaconda-managed Python interpreters make torch fail to load (`OSError: WinError 1114`),
+> while a uv-managed Python imports it cleanly.
 
 ## Run
 
@@ -30,7 +30,7 @@ The collector (`collect_sample.py`) needs `ffmpeg` on `PATH`.
 ## Setup (pip fallback)
 
     python -m venv .venv
-    .venv\Scripts\python -m pip install -e ".[dev]"
+    .venv\Scripts\python -m pip install -e ".[dev,feasibility]"
 
 pip ignores `uv.lock` (resolves latest within the `pyproject.toml` ranges) and does not pick
 the managed Python, so on this machine the pip path can hit the torch `WinError 1114`. Prefer uv.
