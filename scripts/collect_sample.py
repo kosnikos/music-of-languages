@@ -133,7 +133,7 @@ def collect(clips_per_lang: int, clip_seconds: int, no_guard: bool = False) -> N
         vectors = _record_usable(kept, key, clips_per_lang, clip_seconds, attempted, extractor)
 
         if not vectors:
-            print(f"[fallback] {key}: 0 capital clips -> trying nationwide")
+            print(f"[fallback] {key}: 0 capital clips -> trying nationwide talk/news")
             nat = find_stations(
                 spec.radio_browser_lang,
                 tags="talk,news",
@@ -142,6 +142,22 @@ def collect(clips_per_lang: int, clip_seconds: int, no_guard: bool = False) -> N
             nat_kept = [s for s in nat if guard_keep(s)]
             vectors = _record_usable(
                 nat_kept, key, clips_per_lang, clip_seconds, attempted, extractor
+            )
+
+        if not vectors:
+            # Last resort: a broad search (no tag) surfaces working private stations
+            # when the tagged public broadcasters are geo-blocked from the collection
+            # host (e.g. German WDR/BR/DLF). May include music — the VAD speech gate
+            # and the language guard still filter it.
+            print(f"[fallback] {key}: still 0 -> broad nationwide search (any tag)")
+            broad = find_stations(
+                spec.radio_browser_lang,
+                tags=None,
+                limit=max(clips_per_lang * 4, 20),
+            )
+            broad_kept = [s for s in broad if guard_keep(s)]
+            vectors = _record_usable(
+                broad_kept, key, clips_per_lang, clip_seconds, attempted, extractor
             )
 
         if vectors:
