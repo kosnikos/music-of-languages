@@ -23,12 +23,13 @@ dependencies = [
     "openai>=1.0",         # OpenAI SDK — light LLM language guard for capital-station selection
     "python-dotenv>=1.0",  # load OPENAI_API_KEY from a gitignored .env for the collector
     "matplotlib>=3.8",
+    "transformers>=4.40",  # HF SSL models (wav2vec2 / XLS-R / HuBERT) for SSLEmbeddingExtractor
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-mock>=3.12", "jupyter>=1.0", "nbstripout>=0.7"]
-# SSL-embedding feasibility probe (Task 16 notebook 03); inference-only.
-feasibility = ["transformers>=4.40"]
+# feasibility probe deps graduated to core (transformers) in the SSL feature-exploration cycle.
+feasibility = []
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -39,6 +40,8 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["slow: tests that download models or hit the network (deselected by default)"]
+addopts = "-m 'not slow'"
 filterwarnings = [
     # Third-party (audioread via librosa) importing stdlib modules deprecated for removal in Python 3.13.
     "ignore:'aifc' is deprecated:DeprecationWarning",
