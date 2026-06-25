@@ -29,6 +29,8 @@ class Station:
     url: str
     codec: str
     bitrate: int
+    country: str = ""
+    language: str = ""
 
 
 def find_stations(
@@ -89,6 +91,8 @@ def find_stations(
                 url=url,
                 codec=row.get("codec", ""),
                 bitrate=int(row.get("bitrate", 0) or 0),
+                country=row.get("country", "").strip(),
+                language=row.get("language", "").strip(),
             )
         )
     return stations

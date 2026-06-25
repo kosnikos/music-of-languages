@@ -26,17 +26,62 @@ class _FakeSession:
 
 def test_find_stations_parses_payload_and_filters_blank_urls():
     payload = [
-        {"name": "Talk One", "url_resolved": "http://a", "codec": "MP3", "bitrate": 128},
-        {"name": "No URL", "url_resolved": "", "codec": "MP3", "bitrate": 128},
-        {"name": "Talk Two", "url_resolved": "http://b", "codec": "AAC", "bitrate": 64},
+        {"name": "Talk One", "url_resolved": "http://a", "codec": "MP3", "bitrate": 128,
+         "country": "Germany", "language": "german"},
+        {"name": "No URL", "url_resolved": "", "codec": "MP3", "bitrate": 128,
+         "country": "Germany", "language": "german"},
+        {"name": "Talk Two", "url_resolved": "http://b", "codec": "AAC", "bitrate": 64,
+         "country": "Austria", "language": "german"},
     ]
     session = _FakeSession(payload)
     stations = radio.find_stations("german", limit=10, session=session)
     assert [s.name for s in stations] == ["Talk One", "Talk Two"]
     assert stations[0].url == "http://a"
+    # country and language must be parsed onto each Station
+    assert stations[0].country == "Germany"
+    assert stations[0].language == "german"
+    assert stations[1].country == "Austria"
     # language must be passed to the API
     _, params = session.calls[0]
     assert params["language"] == "german"
+
+
+def test_find_stations_parses_country_and_language_fields():
+    """Station.country and Station.language are populated from the API payload."""
+    payload = [
+        {
+            "name": "Alpha Radio",
+            "url_resolved": "http://alpha",
+            "codec": "MP3",
+            "bitrate": 128,
+            "country": "Greece",
+            "language": "greek",
+        },
+    ]
+    session = _FakeSession(payload)
+    stations = radio.find_stations("greek", limit=5, session=session)
+    assert len(stations) == 1
+    assert stations[0].country == "Greece"
+    assert stations[0].language == "greek"
+
+
+def test_find_stations_defaults_country_and_language_when_absent():
+    """Rows without country/language fields produce Station with empty string defaults."""
+    payload = [
+        {"name": "Bare Station", "url_resolved": "http://bare", "codec": "MP3", "bitrate": 64},
+    ]
+    session = _FakeSession(payload)
+    stations = radio.find_stations("french", limit=5, session=session)
+    assert stations[0].country == ""
+    assert stations[0].language == ""
+
+
+def test_station_positional_construction_still_works():
+    """Station(name, url, codec, bitrate) still works — new fields have defaults."""
+    st = radio.Station("My Station", "http://s", "MP3", 128)
+    assert st.name == "My Station"
+    assert st.country == ""
+    assert st.language == ""
 
 
 def test_record_clip_builds_ffmpeg_command(tmp_path):
@@ -64,8 +109,15 @@ def test_record_clip_builds_ffmpeg_command(tmp_path):
 # New tests: geo params + tag in find_stations, find_capital_stations
 # ---------------------------------------------------------------------------
 
-def _station_dict(name, url, codec="MP3", bitrate=128):
-    return {"name": name, "url_resolved": url, "codec": codec, "bitrate": bitrate}
+def _station_dict(name, url, codec="MP3", bitrate=128, country="", language=""):
+    return {
+        "name": name,
+        "url_resolved": url,
+        "codec": codec,
+        "bitrate": bitrate,
+        "country": country,
+        "language": language,
+    }
 
 
 class _GeoAwareFakeSession:
@@ -127,9 +179,9 @@ def test_find_stations_omits_geo_and_tag_when_not_given():
 def test_find_capital_stations_unions_speech_tags_and_dedups_by_url():
     """find_capital_stations deduplicates stations returned by multiple tag calls."""
     # Station A appears under both "talk" and "news" — should appear once in result.
-    shared = _station_dict("Shared", "http://shared")
-    talk_only = _station_dict("TalkOnly", "http://talk-only")
-    news_only = _station_dict("NewsOnly", "http://news-only")
+    shared = _station_dict("Shared", "http://shared", country="United Kingdom", language="english")
+    talk_only = _station_dict("TalkOnly", "http://talk-only", country="United Kingdom", language="english")
+    news_only = _station_dict("NewsOnly", "http://news-only", country="United Kingdom", language="english")
 
     geo_by_tag = {
         "talk": [shared, talk_only],
