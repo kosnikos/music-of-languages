@@ -28,8 +28,42 @@ from musiclang.clean.vad import concat_speech, extract_speech, total_speech_seco
 from musiclang.config import DATA_DIR, SEED_LANGUAGES, TARGET_SAMPLE_RATE
 from musiclang.features.aggregate import build_language_table
 from musiclang.features.prosody_acoustic import ProsodyAcousticExtractor
-from musiclang.ingest.radio import find_capital_stations, record_clip
+from musiclang.ingest.radio import find_capital_stations, find_stations, record_clip
 from musiclang.ingest.language_filter import is_in_language
+
+
+def _record_usable(
+    stations: list,
+    key: str,
+    clips_per_lang: int,
+    clip_seconds: int,
+    attempted: set,
+    extractor: "ProsodyAcousticExtractor",
+) -> list:
+    """Record clips from stations, returning feature vectors for usable clips.
+
+    Tracks attempted URLs across calls (via the mutable ``attempted`` set) so
+    the nationwide fallback never re-tries a URL that already failed.
+    """
+    vectors: list[dict[str, float]] = []
+    for s in stations:
+        if len(vectors) >= clips_per_lang:
+            break
+        if s.url in attempted:
+            continue
+        attempted.add(s.url)
+        out = DATA_DIR / "clips" / key / f"{len(attempted):02d}.wav"
+        try:
+            record_clip(s.url, out, duration_s=clip_seconds)
+            signal = normalize_loudness(load_audio(out))
+            segments = extract_speech(signal)
+            if total_speech_seconds(segments) < 5.0:
+                continue
+            speech = concat_speech(signal, segments)
+            vectors.append(extractor.extract(speech, sr=TARGET_SAMPLE_RATE))
+        except Exception as exc:
+            print(f"[skip] {key} {s.url}: {exc}")
+    return vectors
 
 
 def collect(clips_per_lang: int, clip_seconds: int, no_guard: bool = False) -> None:
@@ -73,38 +107,42 @@ def collect(clips_per_lang: int, clip_seconds: int, no_guard: bool = False) -> N
     per_language: dict[str, list[dict[str, float]]] = {}
 
     for key, spec in SEED_LANGUAGES.items():
-        # Fetch a larger pool so the guard can drop some and we still get enough.
         pool_size = max(clips_per_lang * 2, clips_per_lang + 3)
+
+        def guard_keep(s) -> bool:
+            if oai_client is None:
+                return True
+            return is_in_language(
+                s.name,
+                spec.name,
+                country=s.country,
+                station_language=s.language,
+                client=oai_client,
+                cache=cache,
+            )
+
         candidates = find_capital_stations(spec.radio_browser_lang, limit=pool_size)
+        kept = []
+        for s in candidates:
+            if guard_keep(s):
+                kept.append(s)
+            else:
+                print(f"[lang-skip] {key}: {s.name}")
 
-        # Apply the language guard.
-        if oai_client is not None:
-            kept: list = []
-            for station in candidates:
-                if is_in_language(station.name, spec.name, client=oai_client, cache=cache):
-                    kept.append(station)
-                else:
-                    print(f"[lang-skip] {key}: {station.name}")
-            stations = kept
-        else:
-            stations = candidates
+        attempted: set[str] = set()
+        vectors = _record_usable(kept, key, clips_per_lang, clip_seconds, attempted, extractor)
 
-        # Record up to clips_per_lang usable clips.
-        vectors: list[dict[str, float]] = []
-        for i, station in enumerate(stations):
-            if len(vectors) >= clips_per_lang:
-                break
-            out = DATA_DIR / "clips" / key / f"{i:02d}.wav"
-            try:
-                record_clip(station.url, out, duration_s=clip_seconds)
-                signal = normalize_loudness(load_audio(out))
-                segments = extract_speech(signal)
-                if total_speech_seconds(segments) < 5.0:
-                    continue
-                speech = concat_speech(signal, segments)
-                vectors.append(extractor.extract(speech, sr=TARGET_SAMPLE_RATE))
-            except Exception as exc:  # prototype: log and continue
-                print(f"[skip] {key} station {i}: {exc}")
+        if not vectors:
+            print(f"[fallback] {key}: 0 capital clips -> trying nationwide")
+            nat = find_stations(
+                spec.radio_browser_lang,
+                tags="talk,news",
+                limit=max(clips_per_lang * 2, 10),
+            )
+            nat_kept = [s for s in nat if guard_keep(s)]
+            vectors = _record_usable(
+                nat_kept, key, clips_per_lang, clip_seconds, attempted, extractor
+            )
 
         if vectors:
             per_language[key] = vectors
