@@ -24,10 +24,11 @@ def percent_v(vocalic: list[float], consonantal: list[float]) -> float:
     Reference (maths & reasoning): Ramus, Nespor & Mehler (1999), Cognition 73:265-292,
     https://doi.org/10.1016/S0010-0277(99)00058-X
     """
-    total = sum(vocalic) + sum(consonantal)
+    sum_v = sum(vocalic)
+    total = sum_v + sum(consonantal)
     if total <= 0:
         return math.nan
-    return 100.0 * sum(vocalic) / total
+    return 100.0 * sum_v / total
 
 
 def delta(intervals: list[float]) -> float:

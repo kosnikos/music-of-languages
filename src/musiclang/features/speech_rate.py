@@ -21,7 +21,10 @@ def count_nuclei(
 ) -> int:
     """Count voiced intensity peaks separated from their neighbours by a dip of
     at least `min_dip_db` (De Jong & Wempe 2009): adjacent peaks whose between-peak
-    valley is less than `min_dip_db` below the lower peak are one nucleus, not two."""
+    valley is less than `min_dip_db` below the lower peak are one nucleus, not two.
+
+    Reference: De Jong & Wempe (2009), https://www.fon.hum.uva.nl/archive/2009/2009-brm-JongWempe.pdf
+    """
     intensity_db = np.asarray(intensity_db, dtype=float)
     voiced = np.asarray(voiced, dtype=bool)
     peaks, _ = find_peaks(intensity_db)  # all local maxima
@@ -44,7 +47,10 @@ def count_nuclei(
 def speech_rate_features(
     signal: np.ndarray, sr: int = TARGET_SAMPLE_RATE
 ) -> dict[str, float]:
-    """Estimate syllable rate from intensity peaks filtered by voicing."""
+    """Estimate syllable rate from intensity peaks filtered by voicing.
+
+    Reference: De Jong & Wempe (2009), https://www.fon.hum.uva.nl/archive/2009/2009-brm-JongWempe.pdf
+    """
     duration = len(signal) / sr
     if duration <= 0:
         return {"syllables_per_sec": math.nan, "n_syllables": 0.0, "duration_s": 0.0}

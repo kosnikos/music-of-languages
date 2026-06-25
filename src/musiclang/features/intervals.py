@@ -43,7 +43,10 @@ def frames_to_intervals(
 def detect_intervals(
     signal: np.ndarray, sr: int = TARGET_SAMPLE_RATE
 ) -> tuple[list[float], list[float]]:
-    """Detect vocalic/consonantal intervals via voicing + relative intensity."""
+    """Detect vocalic/consonantal intervals via voicing + relative intensity.
+
+    Reference: Ramus, Nespor & Mehler (1999), https://doi.org/10.1016/S0010-0277(99)00058-X
+    """
     sound = parselmouth.Sound(signal.astype(np.float64), sampling_frequency=sr)
     pitch = sound.to_pitch(time_step=_FRAME_STEP)
     intensity = sound.to_intensity(time_step=_FRAME_STEP)

@@ -41,3 +41,8 @@ def test_rpvi_two_intervals():
 def test_single_interval_pvi_is_nan():
     assert math.isnan(rm.npvi([1.0]))
     assert math.isnan(rm.rpvi([1.0]))
+
+
+def test_single_interval_delta_varco_is_nan():
+    assert math.isnan(rm.delta([1.0]))
+    assert math.isnan(rm.varco([1.0]))

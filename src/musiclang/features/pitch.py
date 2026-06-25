@@ -19,7 +19,10 @@ from musiclang.config import TARGET_SAMPLE_RATE
 
 
 def pitch_features(signal: np.ndarray, sr: int = TARGET_SAMPLE_RATE) -> dict[str, float]:
-    """Summary statistics of the F0 contour over voiced frames."""
+    """Summary statistics of the F0 contour over voiced frames.
+
+    Reference: Boersma (1993), https://www.fon.hum.uva.nl/paul/papers/Proceedings_1993.pdf
+    """
     keys = ["f0_mean", "f0_std", "f0_min", "f0_max", "f0_range", "f0_slope"]
     sound = parselmouth.Sound(signal.astype(np.float64), sampling_frequency=sr)
     pitch = sound.to_pitch(time_step=0.01)
