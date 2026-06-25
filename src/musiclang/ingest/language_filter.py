@@ -6,6 +6,9 @@ Purpose : Phase-0 best-effort filter — classifies whether a station
           stations (e.g. "BBC Arabic" from an English set) can be dropped.
 Design  : Fail-open — any API / key error returns True (keep the station)
           so a transient outage never silently discards the whole sample.
+          Country-aware & lenient — station country and listed languages are
+          fed to the model, which is instructed to keep the station unless it
+          CLEARLY broadcasts in a different language.
 """
 
 from __future__ import annotations
@@ -26,6 +29,8 @@ class LanguageVerdict(BaseModel):
 def is_in_language(
     station_name: str,
     language: str,
+    country: str | None = None,
+    station_language: str | None = None,
     client=None,
     cache: dict | None = None,
 ) -> bool:
@@ -37,12 +42,19 @@ def is_in_language(
         Human-readable station name, e.g. ``"BBC Radio 4"``.
     language:
         Target language, e.g. ``"English"``.
+    country:
+        Country the station is registered in, e.g. ``"Greece"``.  When
+        provided it is passed to the model to reduce false drops for
+        stations with generic names.
+    station_language:
+        Comma-separated language tags from the station record, e.g.
+        ``"greek,english"``.  Passed to the model as extra evidence.
     client:
         An ``openai.OpenAI`` instance (or compatible fake). Constructed
         lazily from ``OPENAI_API_KEY`` if *None*.
     cache:
-        Optional dict keyed by station name.  Cache hits skip the API call;
-        cache misses are stored before returning.
+        Optional dict.  Cache hits skip the API call; cache misses are
+        stored before returning.  Key format: ``"{name}|{country}|{language}"``.
 
     Returns
     -------
@@ -50,9 +62,12 @@ def is_in_language(
         ``True``  → keep the station (primary language match, or fail-open).
         ``False`` → drop the station.
     """
+    # --- cache key (country-aware) ---
+    key = f"{station_name}|{country or ''}|{language}"
+
     # --- cache hit ---
-    if cache is not None and station_name in cache:
-        return cache[station_name]
+    if cache is not None and key in cache:
+        return cache[key]
 
     # --- lazy client construction ---
     if client is None:
@@ -67,18 +82,24 @@ def is_in_language(
                 {
                     "role": "system",
                     "content": (
-                        "You classify radio stations by their primary broadcast "
-                        "language from the station name."
+                        "You filter radio stations by primary broadcast language "
+                        "to remove foreign-language stations. "
+                        "Prefer to KEEP a station unless it CLEARLY broadcasts in "
+                        "a different language than the target. "
+                        "When the station's country is one where the target language "
+                        "is widely spoken, or you are unsure, keep it."
                     ),
                 },
                 {
                     "role": "user",
                     "content": (
-                        f"Does the radio station named '{station_name}' broadcast "
-                        f"primarily in {language}? "
-                        "Well-known examples: 'BBC Arabic' broadcasts in Arabic "
-                        "(not English); 'BBC Afrique' in French. "
-                        "Answer about the PRIMARY broadcast language."
+                        f"Target language: {language}. "
+                        f"Station: name={station_name!r}, country={country!r}, "
+                        f"listed_languages={station_language!r}. "
+                        "Set is_primary_language=False ONLY if it clearly broadcasts "
+                        "primarily in a DIFFERENT language "
+                        "(e.g. 'BBC Arabic' in the United Kingdom broadcasts Arabic, "
+                        "not English). Otherwise True."
                     ),
                 },
             ],
@@ -100,6 +121,6 @@ def is_in_language(
 
     # --- populate cache ---
     if cache is not None:
-        cache[station_name] = result
+        cache[key] = result
 
     return result
