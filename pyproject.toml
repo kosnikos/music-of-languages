@@ -20,11 +20,13 @@ dependencies = [
     "torch>=2.2,<2.12",
     "torchaudio>=2.2,<2.12",
     "requests>=2.31",
+    "openai>=1.0",         # OpenAI SDK — light LLM language guard for capital-station selection
+    "python-dotenv>=1.0",  # load OPENAI_API_KEY from a gitignored .env for the collector
     "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-mock>=3.12", "jupyter>=1.0"]
+dev = ["pytest>=8.0", "pytest-mock>=3.12", "jupyter>=1.0", "nbstripout>=0.7"]
 # SSL-embedding feasibility probe (Task 16 notebook 03); inference-only.
 feasibility = ["transformers>=4.40"]
 
