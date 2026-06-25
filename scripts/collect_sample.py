@@ -23,11 +23,14 @@ from __future__ import annotations
 import argparse
 import json
 
+from datetime import datetime, timezone
+
 from musiclang.audio import load_audio, normalize_loudness
 from musiclang.clean.vad import concat_speech, extract_speech, total_speech_seconds
 from musiclang.config import DATA_DIR, SEED_LANGUAGES, TARGET_SAMPLE_RATE
 from musiclang.features.aggregate import build_language_table
 from musiclang.features.prosody_acoustic import ProsodyAcousticExtractor
+from musiclang.ingest.manifest import manifest_dataframe
 from musiclang.ingest.radio import find_capital_stations, find_stations, record_clip
 from musiclang.ingest.language_filter import is_in_language
 
@@ -39,12 +42,9 @@ def _record_usable(
     clip_seconds: int,
     attempted: set,
     extractor: "ProsodyAcousticExtractor",
+    manifest_rows: list,
 ) -> list:
-    """Record clips from stations, returning feature vectors for usable clips.
-
-    Tracks attempted URLs across calls (via the mutable ``attempted`` set) so
-    the nationwide fallback never re-tries a URL that already failed.
-    """
+    """Record clips; append manifest rows for usable clips (mutates manifest_rows)."""
     vectors: list[dict[str, float]] = []
     for s in stations:
         if len(vectors) >= clips_per_lang:
@@ -52,15 +52,23 @@ def _record_usable(
         if s.url in attempted:
             continue
         attempted.add(s.url)
+        clip_id = f"{key}_{len(attempted):02d}"
         out = DATA_DIR / "clips" / key / f"{len(attempted):02d}.wav"
         try:
             record_clip(s.url, out, duration_s=clip_seconds)
             signal = normalize_loudness(load_audio(out))
             segments = extract_speech(signal)
-            if total_speech_seconds(segments) < 5.0:
+            speech_s = total_speech_seconds(segments)
+            if speech_s < 5.0:
                 continue
             speech = concat_speech(signal, segments)
             vectors.append(extractor.extract(speech, sr=TARGET_SAMPLE_RATE))
+            manifest_rows.append({
+                "clip_id": clip_id, "language": key, "station_name": s.name,
+                "station_url": s.url, "country": s.country,
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
+                "duration_s": float(speech_s), "path": str(out),
+            })
         except Exception as exc:
             print(f"[skip] {key} {s.url}: {exc}")
     return vectors
@@ -105,6 +113,7 @@ def collect(clips_per_lang: int, clip_seconds: int, no_guard: bool = False) -> N
 
     extractor = ProsodyAcousticExtractor()
     per_language: dict[str, list[dict[str, float]]] = {}
+    manifest_rows: list[dict] = []
 
     for key, spec in SEED_LANGUAGES.items():
         pool_size = max(clips_per_lang * 2, clips_per_lang + 3)
@@ -130,7 +139,7 @@ def collect(clips_per_lang: int, clip_seconds: int, no_guard: bool = False) -> N
                 print(f"[lang-skip] {key}: {s.name}")
 
         attempted: set[str] = set()
-        vectors = _record_usable(kept, key, clips_per_lang, clip_seconds, attempted, extractor)
+        vectors = _record_usable(kept, key, clips_per_lang, clip_seconds, attempted, extractor, manifest_rows)
 
         if not vectors:
             print(f"[fallback] {key}: 0 capital clips -> trying nationwide talk/news")
@@ -141,7 +150,7 @@ def collect(clips_per_lang: int, clip_seconds: int, no_guard: bool = False) -> N
             )
             nat_kept = [s for s in nat if guard_keep(s)]
             vectors = _record_usable(
-                nat_kept, key, clips_per_lang, clip_seconds, attempted, extractor
+                nat_kept, key, clips_per_lang, clip_seconds, attempted, extractor, manifest_rows
             )
 
         if not vectors:
@@ -157,7 +166,7 @@ def collect(clips_per_lang: int, clip_seconds: int, no_guard: bool = False) -> N
             )
             broad_kept = [s for s in broad if guard_keep(s)]
             vectors = _record_usable(
-                broad_kept, key, clips_per_lang, clip_seconds, attempted, extractor
+                broad_kept, key, clips_per_lang, clip_seconds, attempted, extractor, manifest_rows
             )
 
         if vectors:
@@ -171,6 +180,8 @@ def collect(clips_per_lang: int, clip_seconds: int, no_guard: bool = False) -> N
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     table.to_parquet(DATA_DIR / "lang_features.parquet")
     print(table)
+    manifest_dataframe(manifest_rows).to_parquet(DATA_DIR / "clips_manifest.parquet")
+    print(f"wrote manifest: {len(manifest_rows)} clips")
 
     # Final cache save.
     _save_cache()
