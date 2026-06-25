@@ -13,10 +13,12 @@ dependencies = [
     "librosa>=0.10",
     "soundfile>=0.12",
     "silero-vad>=5.1",
-    # torch 2.12.x +cpu fails to initialize on Windows (WinError 1114 on c10.dll); 2.7.x is verified-good.
-    # Cap below 2.8 and pin torchaudio to the same line (silero-vad imports torchaudio; versions must match).
-    "torch>=2.2,<2.8",
-    "torchaudio>=2.2,<2.8",
+    # torch/torchaudio come from the PyTorch CPU index (see [tool.uv] below) and are pinned by uv.lock.
+    # Cap <2.12: torchaudio's newest CPU build is 2.11 and silero-vad imports it, so torch is gated to a
+    # version with a matching torchaudio (a mismatched pair fails to import, WinError 127). Within that bound
+    # the exact version is lock-decided. (Aside: torch 2.12.x+cpu also fails to init on Windows, WinError 1114.)
+    "torch>=2.2,<2.12",
+    "torchaudio>=2.2,<2.12",
     "requests>=2.31",
     "matplotlib>=3.8",
 ]
@@ -44,3 +46,21 @@ filterwarnings = [
     "ignore:The default value of `init` will change:FutureWarning",
     "ignore:The `dissimilarity` parameter is deprecated:FutureWarning",
 ]
+
+# --- uv configuration ---
+[tool.uv]
+# Use uv-managed CPython only. The system Anaconda interpreter makes torch>=2.8 fail to
+# initialize on Windows (OSError WinError 1114 on c10.dll); a managed Python avoids it
+# entirely (torch 2.11 imports cleanly there). This keeps the project off Anaconda.
+python-preference = "only-managed"
+
+# torch/torchaudio are served as +cpu wheels from the PyTorch CPU index, not PyPI.
+# `explicit = true` means ONLY packages mapped to it in [tool.uv.sources] use this index.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+torchaudio = [{ index = "pytorch-cpu" }]
