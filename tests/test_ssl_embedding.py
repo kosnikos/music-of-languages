@@ -1,5 +1,6 @@
 # tests/test_ssl_embedding.py
 import numpy as np
+import pytest
 import torch
 
 from musiclang.features.base import FeatureExtractor
@@ -25,7 +26,7 @@ class _FakeModel:
     def __init__(self, n_layers=4, hidden=6, frames=10):
         self.n_layers, self.hidden, self.frames = n_layers, hidden, frames
 
-    def __call__(self, input_values, output_hidden_states):
+    def __call__(self, output_hidden_states, **inputs):
         hs = tuple(
             torch.full((1, self.frames, self.hidden), float(k)) for k in range(self.n_layers)
         )
@@ -61,12 +62,9 @@ def test_mean_std_pooling_doubles_dim(monkeypatch):
     assert all(v == 0.0 for v in list(out.values())[6:])  # std of constant = 0
 
 
-import pytest
-
-
 @pytest.mark.slow
 def test_real_xlsr_smoke():
-    """Downloads XLS-R-300m (~1.2GB). Run: uv run pytest -m slow"""
+    """Downloads wav2vec2-base (~360MB). Run: uv run pytest -m slow"""
     ex = SSLEmbeddingExtractor(model_id="facebook/wav2vec2-base", layer=-1, pooling="mean")
     rng = np.random.default_rng(0)
     out = ex.extract(rng.standard_normal(16_000).astype(np.float32), sr=16_000)

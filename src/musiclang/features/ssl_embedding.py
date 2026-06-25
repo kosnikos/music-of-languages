@@ -33,7 +33,6 @@ def _load_model(model_id: str, device: str):
     model = AutoModel.from_pretrained(model_id).to(device).eval()
     for p in model.parameters():
         p.requires_grad_(False)
-    torch.set_grad_enabled(False)
     return feat, model
 
 
