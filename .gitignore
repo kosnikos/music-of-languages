@@ -29,3 +29,8 @@ outputs/
 Thumbs.db
 .idea/
 .vscode/
+
+# Secrets / local environment (never commit API keys)
+.env
+.env.*
+!.env.example
