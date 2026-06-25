@@ -1,0 +1,46 @@
+[project]
+name = "musiclang"
+version = "0.0.1"
+description = "The Music of Languages — prosody-based language proximity (Phase 0 exploration)"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyarrow>=14",  # parquet engine for pandas to_parquet/read_parquet (collector + notebooks)
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+    "praat-parselmouth>=0.4.3",
+    "librosa>=0.10",
+    "soundfile>=0.12",
+    "silero-vad>=5.1",
+    # torch 2.12.x +cpu fails to initialize on Windows (WinError 1114 on c10.dll); 2.7.x is verified-good.
+    # Cap below 2.8 and pin torchaudio to the same line (silero-vad imports torchaudio; versions must match).
+    "torch>=2.2,<2.8",
+    "torchaudio>=2.2,<2.8",
+    "requests>=2.31",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-mock>=3.12", "jupyter>=1.0"]
+# SSL-embedding feasibility probe (Task 16 notebook 03); inference-only.
+feasibility = ["transformers>=4.40"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # Third-party (audioread via librosa) importing stdlib modules deprecated for removal in Python 3.13.
+    "ignore:'aifc' is deprecated:DeprecationWarning",
+    "ignore:'audioop' is deprecated:DeprecationWarning",
+    "ignore:'sunau' is deprecated:DeprecationWarning",
+    # sklearn MDS API churn (params still valid in the pinned sklearn; revisit on upgrade to 1.10). See Phase-1 tech debt.
+    "ignore:The default value of `init` will change:FutureWarning",
+    "ignore:The `dissimilarity` parameter is deprecated:FutureWarning",
+]

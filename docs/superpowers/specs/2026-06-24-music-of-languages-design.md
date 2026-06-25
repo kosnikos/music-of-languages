@@ -228,6 +228,7 @@ interface, configured per run — not assumptions baked into the pipeline.
 - Exact per-language sample budget (stations × clips × hours) to stabilize metrics.
 - Reference structures for validation (which family-tree / typology / lexical datasets).
 - v2 regional data sourcing (region-tagged stations) and dialect-vs-language confounds.
+- Phase 0 baseline findings + exploration agenda recorded in docs/phase0-findings.md.
 
 ## 12. Related documents
 
