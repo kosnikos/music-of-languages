@@ -14,6 +14,7 @@ Requirements:
 
 Writes:
     data/clips/<lang>/*.wav
+    data/clips_manifest.parquet   (per-clip provenance: language, station, time, path)
     data/lang_features.parquet
     data/lang_cache.json   (persistent guard-verdict cache, gitignored)
 """

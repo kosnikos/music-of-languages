@@ -1,4 +1,3 @@
-# src/musiclang/pipeline.py
 """Recorded clips -> cleaned speech -> windowed segments -> per-segment features.
 
 One pipeline serves every FeatureExtractor (scalar prosody or SSL embedding):
@@ -57,7 +56,13 @@ def build_segment_features(
     extractor: FeatureExtractor,
     length_s: float | None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Build (segments provenance, per-segment features) for every clip in `manifest`."""
+    """Build (segments provenance, per-segment features) for every clip in `manifest`.
+
+    Empty cleaned clips are skipped, but a per-clip failure (e.g. a corrupt clip
+    that raises in `clean_clip`/`extract`) propagates: a caller that must tolerate
+    partial failure should isolate clips (call this per single-row manifest in a
+    try/except), as the comparison notebook does.
+    """
     seg_rows: list[dict] = []
     feat_rows: dict[str, dict] = {}
     for _, row in manifest.iterrows():

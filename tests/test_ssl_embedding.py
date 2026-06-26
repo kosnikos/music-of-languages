@@ -1,4 +1,3 @@
-# tests/test_ssl_embedding.py
 import numpy as np
 import pytest
 import torch
