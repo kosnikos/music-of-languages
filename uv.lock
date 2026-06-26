@@ -1732,6 +1732,7 @@ dependencies = [
     { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
     { name = "torchaudio", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torchaudio", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "transformers" },
 ]
 
 [package.optional-dependencies]
@@ -1740,9 +1741,6 @@ dev = [
     { name = "nbstripout" },
     { name = "pytest" },
     { name = "pytest-mock" },
-]
-feasibility = [
-    { name = "transformers" },
 ]
 
 [package.metadata]
@@ -1766,7 +1764,7 @@ requires-dist = [
     { name = "soundfile", specifier = ">=0.12" },
     { name = "torch", specifier = ">=2.2,<2.12", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchaudio", specifier = ">=2.2,<2.12", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "transformers", marker = "extra == 'feasibility'", specifier = ">=4.40" },
+    { name = "transformers", specifier = ">=4.40" },
 ]
 provides-extras = ["dev", "feasibility"]
 
