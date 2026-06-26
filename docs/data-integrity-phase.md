@@ -41,10 +41,47 @@ content, outlier removal, and robust aggregation, then re-measure.
 - Finalizing the feature method — XLS-R stays *provisional* (Phase 0.5 decision); this phase asks
   "does the comparison hold up on trustworthy data?", not "which method wins."
 - Full production ingest hardening (scheduling, retention) — Phase 1.
-- HLS/`.m3u8` + geo-fallback capture is **optional** here (needed for German/Finnish/English/Italian
-  depth); it can stay Phase 1 if the working stations yield enough independent segments.
+- Choosing/building the **clip source(s)** is the job of **Workstream A**; heavy capture infra
+  (HLS/`.m3u8`, geo-fallback, podcast/corpus fetchers) can still defer to Phase 1 if a lighter
+  source yields enough independent verified segments.
 
-## Workstream A — Independent 30 s segments
+## Workstream A — Alternative clip-source research (do this FIRST)
+
+Everything below depends on the **source**: independent 30 s segments, audio-verifiable clean
+speech, and channel diversity are only as good as where the audio comes from. Internet radio via
+radio-browser + progressive streams hit structural limits in Phase 0/0.5 — German public
+broadcasters geo-block, Finnish (Yle) and BBC are HLS/`.m3u8` the simple `ffmpeg` path can't
+capture, Italian talk stations near Rome are sparse, and radio mixes music/ads/jingles. **Before**
+investing in segmentation, verification, or outlier work, survey and evaluate alternative or
+complementary sources for clean, attributable, target-language speech.
+
+Candidate source families to investigate (non-exhaustive):
+- **Better radio capture:** HLS/`.m3u8` via `streamlink` or ffmpeg's HLS path; geo-fallback/mirrors;
+  deeper per-language station lists; aggregators beyond radio-browser.
+- **Podcasts** (RSS / podcast directories): talk-heavy, per-show metadata, downloadable episodes,
+  many distinct speakers/sessions — strong for *breadth* and cleanliness.
+- **Public spoken-language corpora:** Mozilla **Common Voice**, **VoxPopuli** (European Parliament,
+  aligned, 23 EU langs), **Multilingual LibriSpeech**, **VoxLingua107**, CSS10 / M-AILABS — high
+  integrity + attribution, but **read/parliamentary register** (a trade-off vs radio's natural
+  prosody — document it, don't ignore it).
+- **Broadcaster on-demand / news audio APIs** (where ToS permits); large-but-messy web sources
+  (YouTube) only if licensing is acceptable.
+
+Evaluate each source on: **coverage** of the 8 seed languages (extensible to 30–40 later);
+**cleanliness** (speech vs music/ads → how much the verifier would discard); **independence** (many
+distinct recordings/speakers vs a few long streams); **register match** (radio talk vs read speech);
+**capturability** (≥30 s clean segments fetchable programmatically; HLS? rate limits?); **channel
+diversity** (many channels/codecs per language — to *test* the confound, not bake it in);
+**legal/ToS/attribution** (record per source; legal is deferred to pre-publication, but choose
+informed).
+
+**Deliverable:** a short **source-evaluation matrix** (sources × criteria) + a recommended source
+or **mix** (e.g. podcasts for breadth + a parliamentary corpus as a clean anchor + improved radio
+capture). This recommendation drives the Workstream B segment budget and any collector/ingest
+changes. Provenance convention (spec §9) applies to any new source/tool; build on the radio limits
+already documented in `docs/phase0-findings.md` and `docs/capital-stations-findings.md`.
+
+## Workstream B — Independent 30 s segments
 
 **Decision (user directive):** the analysis unit becomes **one ~30 s clean-speech segment per
 recording**, so no two segments share a recording/speaker/channel. Segments are **independent of one
@@ -52,9 +89,10 @@ another**, which kills within-recording pseudoreplication and makes the confound
 and leave-one-out honest.
 
 Implications:
-- **Breadth over depth:** prioritize **many recordings across many stations and times** per language
-  over many windows per clip. Target an explicit budget of *independent* 30 s segments/language
-  across a minimum number of distinct stations (see open decisions).
+- **Breadth over depth:** from the source(s) chosen in Workstream A, prioritize **many recordings
+  across many stations/shows and times** per language over many windows per clip. Target an explicit
+  budget of *independent* 30 s segments/language across a minimum number of distinct channels (see
+  open decisions).
 - **≥30 s clean speech per recording required.** The collector's VAD speech gate (currently ≥5 s)
   must rise so a recording yields a full 30 s window; record longer raw clips if needed.
 - **Reuse:** `clean/window.py` already cuts 30 s windows; `pipeline.py` already carries
@@ -65,7 +103,7 @@ Open: strictly one-per-recording vs a few **non-adjacent** windows/recording wit
 aggregation (recording → language); segment-selection rule (first valid / centered / random);
 sample budget (segments/language, min stations/language).
 
-## Workstream B — LLM segment verification (speech / music / other-language)
+## Workstream C — LLM segment verification (speech / music / other-language)
 
 **Decision (user directive):** a **light LLM classifier** verifies each candidate 30 s segment is
 genuinely **speech in the target language** — labelling `{speech | music | other-language | other}` —
@@ -91,7 +129,7 @@ classifier/model used.
 Open: which approach; cost/latency budget; thresholds; how to treat low-confidence Whisper language
 ID; fail-open vs fail-closed.
 
-## Workstream C — Outlier detection (deferred robustness strand)
+## Workstream D — Outlier detection (deferred robustness strand)
 
 Per language, **after** verification, flag anomalous segments before aggregation. This is where the
 **swappable robustness/Validator interface** deferred from Phase 0.5 gets built — mirror the
@@ -107,7 +145,7 @@ Candidate methods (swappable, evaluate ≥1):
 Apply in **both** spaces (prosody scalars; SSL embedding), since the right space is itself a question.
 Output: per-segment outlier flag; aggregation excludes or down-weights flagged segments.
 
-## Workstream D — Robust aggregation & validation
+## Workstream E — Robust aggregation & validation
 
 - **Robust aggregation:** per-language **median** (or trimmed mean) instead of mean; report
   **dispersion** (MAD/IQR) alongside central tendency.
@@ -115,7 +153,7 @@ Output: per-segment outlier flag; aggregation excludes or down-weights flagged s
   matrix; bootstrap confidence intervals on the headline metrics.
 - **Re-run the confound check** — now that segments are independent (one per recording), does
   **language** separation finally exceed **station**? This is the phase's central test.
-- Build these as **swappable validation components** (the same robustness interface as Workstream C),
+- Build these as **swappable validation components** (the same robustness interface as Workstream D),
   configured per run — per the design spec §7.
 
 ## Outputs (deliverables)
@@ -143,15 +181,15 @@ Output: per-segment outlier flag; aggregation excludes or down-weights flagged s
 
 ## Open design decisions for the next session's brainstorm
 
-1. Segment unit: strictly one 30 s/recording (max independence) vs a few non-adjacent windows/recording
+1. **Clip source(s)** (Workstream A): which source or mix to adopt; the register trade-off (radio
+   talk vs read/parliamentary speech); how much capture infra (HLS, podcast/corpus fetch) to build now.
+2. Segment unit: strictly one 30 s/recording (max independence) vs a few non-adjacent windows/recording
    with hierarchical aggregation. *(lean: one/recording.)*
-2. Sample budget: target independent segments/language and minimum distinct stations/language.
-3. LLM verification approach: ASR+LLM vs audio-LLM vs hybrid *(lean: Whisper lang-ID + light LLM
+3. Sample budget: target independent segments/language and minimum distinct stations/language.
+4. LLM verification approach: ASR+LLM vs audio-LLM vs hybrid *(lean: Whisper lang-ID + light LLM
    transcript check)*; fail-open vs fail-closed; thresholds.
-4. Outlier method(s) and which feature space (prosody / embedding / both).
-5. Robust aggregation: median vs trimmed mean; dispersion measure.
-6. Whether to add HLS/geo capture **now** (to give German/Finnish/English/Italian enough independent
-   segments) or defer to Phase 1.
+5. Outlier method(s) and which feature space (prosody / embedding / both).
+6. Robust aggregation: median vs trimmed mean; dispersion measure.
 
 ## Success criteria
 
