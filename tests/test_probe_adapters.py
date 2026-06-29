@@ -26,6 +26,23 @@ def test_capture_hls_builds_streamlink_then_ffmpeg(tmp_path):
     assert cmds[1][0] == "ffmpeg" and cmds[1][-1] == str(out)
 
 
+def test_capture_progressive_delegates_to_record_clip(tmp_path):
+    cmds = []
+    ref = RecordingRef("radio", "spanish", "ser", "progressive", "http://stream")
+    out = tmp_path / "o.wav"
+    res = adapters.capture_progressive(ref, out, duration_s=45, runner=_fake_runner(cmds))
+    assert res == out and out.exists()
+    ff = cmds[0]
+    assert ff[0] == "ffmpeg" and "http://stream" in ff and "45" in ff and ff[-1] == str(out)
+
+
+def test_capture_progressive_returns_none_on_failure(tmp_path):
+    def boom(cmd, **kwargs):
+        raise RuntimeError("ffmpeg failed")
+    ref = RecordingRef("radio", "spanish", "ser", "progressive", "http://stream")
+    assert adapters.capture_progressive(ref, tmp_path / "o.wav", runner=boom) is None
+
+
 def test_capture_rss_downloads_then_slices(tmp_path):
     cmds = []
     def fake_dl(url, dest):

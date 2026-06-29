@@ -4,8 +4,10 @@
 **Spec:** `docs/superpowers/specs/2026-06-29-source-evaluation-design.md` · **Plan:** `docs/superpowers/plans/2026-06-29-source-evaluation.md`
 
 Method: desk survey of four source families (✎ ratings) + **real capture probes** across all 8 seed
-languages (⚙ measured). Probe code: `src/musiclang/probe/` + `scripts/probe_source.py`. Raw probe
-data: `data/source_probe_results_{radio,podcast}.parquet` (gitignored). Seed languages: english,
+languages (⚙ measured). Probe code: `src/musiclang/probe/` + `scripts/probe_source.py` (the runner writes
+`data/source_probe_results.parquet` + `source_probe_summary.parquet`; the radio and podcast probes
+here were run separately via `--out` → `data/source_probe_results_{radio,podcast}.parquet`, all
+gitignored). Seed languages: english,
 german, polish, french, spanish, italian, greek, finnish.
 
 ---
