@@ -30,7 +30,10 @@ dependencies = [
 dev = ["pytest>=8.0", "pytest-mock>=3.12", "jupyter>=1.0", "nbstripout>=0.7"]
 # feasibility probe deps graduated to core (transformers) in the SSL feature-exploration cycle.
 feasibility = []
-probe = ["streamlink>=6.0", "feedparser>=6.0", "datasets>=2.14"]
+# `datasets` capped <4.0: 4.0+ decodes the Audio feature via torchcodec (not installed; finicky on
+# Windows with the pinned torch 2.11). Pre-4.0 decodes via the already-present soundfile. Also keeps
+# trust_remote_code support, needed for the Common Voice (Greek) loading script.
+probe = ["streamlink>=6.0", "feedparser>=6.0", "datasets>=2.14,<4.0"]
 
 [build-system]
 requires = ["setuptools>=68"]
