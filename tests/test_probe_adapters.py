@@ -66,3 +66,62 @@ def test_latest_enclosures_extracts_audio_hrefs():
 
 def test_capture_dispatch_maps_kinds():
     assert set(adapters.CAPTURE_DISPATCH) == {"progressive", "hls", "rss", "corpus"}
+
+
+# ---------------------------------------------------------------------------
+# corpus_probe tests (Task 4)
+# ---------------------------------------------------------------------------
+
+def test_corpus_probe_dedups_speakers_and_writes(tmp_path):
+    items = [
+        {"speaker_id": "s1", "audio": {"array": [0.0] * 10, "sampling_rate": 16_000}},
+        {"speaker_id": "s1", "audio": {"array": [0.0] * 10, "sampling_rate": 16_000}},  # dup
+        {"speaker_id": "s2", "audio": {"array": [0.0] * 10, "sampling_rate": 16_000}},
+        {"speaker_id": "s3", "audio": {"array": [0.0] * 10, "sampling_rate": 16_000}},
+    ]
+    written = []
+
+    def fake_writer(path, arr, sr):
+        Path(path).write_bytes(b"wav")
+        written.append((path, sr))
+
+    pairs = adapters.corpus_probe(
+        "finnish", 2, tmp_path, loader=lambda lang: iter(items), writer=fake_writer
+    )
+    assert len(pairs) == 2
+    assert [ref.channel_id for ref, _ in pairs] == ["s1", "s2"]   # deduped, capped at n
+    assert all(ref.kind == "corpus" and ref.source == "corpus" for ref, _ in pairs)
+    assert all(Path(p).exists() for _, p in pairs)
+    assert written[0][1] == 16_000
+
+
+def test_corpus_probe_greek_uses_client_id(tmp_path):
+    """Greek/Common Voice items carry client_id, not speaker_id."""
+    items = [
+        {"client_id": "c1", "audio": {"array": [0.0] * 10, "sampling_rate": 16_000}},
+        {"client_id": "c1", "audio": {"array": [0.0] * 10, "sampling_rate": 16_000}},  # dup
+        {"client_id": "c2", "audio": {"array": [0.0] * 10, "sampling_rate": 16_000}},
+    ]
+    written = []
+
+    def fake_writer(path, arr, sr):
+        Path(path).write_bytes(b"wav")
+        written.append(path)
+
+    pairs = adapters.corpus_probe(
+        "greek", 3, tmp_path, loader=lambda lang: iter(items), writer=fake_writer
+    )
+    assert len(pairs) == 2   # only 2 distinct client_ids
+    channel_ids = [ref.channel_id for ref, _ in pairs]
+    assert channel_ids == ["c1", "c2"]
+
+
+def test_corpus_spec_covers_all_eight_languages():
+    from musiclang.config import SEED_LANGUAGES
+    assert set(adapters._CORPUS_SPEC) == set(SEED_LANGUAGES)
+    # Greek comes from Common Voice
+    assert "common_voice" in adapters._CORPUS_SPEC["greek"][0]
+    # All other 7 use VoxPopuli
+    for lang, spec in adapters._CORPUS_SPEC.items():
+        if lang != "greek":
+            assert spec[0] == "facebook/voxpopuli", f"{lang} should use voxpopuli"

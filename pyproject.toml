@@ -30,7 +30,7 @@ dependencies = [
 dev = ["pytest>=8.0", "pytest-mock>=3.12", "jupyter>=1.0", "nbstripout>=0.7"]
 # feasibility probe deps graduated to core (transformers) in the SSL feature-exploration cycle.
 feasibility = []
-probe = ["streamlink>=6.0", "feedparser>=6.0"]
+probe = ["streamlink>=6.0", "feedparser>=6.0", "datasets>=2.14"]
 
 [build-system]
 requires = ["setuptools>=68"]

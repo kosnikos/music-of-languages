@@ -133,3 +133,98 @@ CAPTURE_DISPATCH = {
     "rss": capture_rss,
     "corpus": capture_local,
 }
+
+
+# ---------------------------------------------------------------------------
+# Corpus probe: VoxPopuli (7 languages) + Common Voice 16.0 (Greek)
+# ---------------------------------------------------------------------------
+
+# Maps language -> (dataset_id, config, split, speaker_field)
+# Greek has no transcribed VoxPopuli split; Common Voice 16.0 provides it.
+_CORPUS_SPEC: dict[str, tuple[str, str, str, str]] = {
+    "english": ("facebook/voxpopuli", "en", "test", "speaker_id"),
+    "german":  ("facebook/voxpopuli", "de", "test", "speaker_id"),
+    "polish":  ("facebook/voxpopuli", "pl", "test", "speaker_id"),
+    "french":  ("facebook/voxpopuli", "fr", "test", "speaker_id"),
+    "spanish": ("facebook/voxpopuli", "es", "test", "speaker_id"),
+    "italian": ("facebook/voxpopuli", "it", "test", "speaker_id"),
+    "finnish": ("facebook/voxpopuli", "fi", "test", "speaker_id"),
+    "greek":   ("mozilla-foundation/common_voice_16_0", "el", "test", "client_id"),
+}
+
+
+def _load_corpus(language: str):
+    """Streaming corpus dataset for `language`.
+
+    VoxPopuli (Wang et al. 2021, arXiv:2101.00390) for 7 languages;
+    Common Voice 16.0 (mozilla-foundation) for Greek which has no VoxPopuli split.
+    Common Voice is gated — the caller is expected to handle auth failures gracefully.
+    """
+    from datasets import load_dataset
+
+    dataset_id, config, split, _ = _CORPUS_SPEC[language]
+    kwargs: dict = {"split": split, "streaming": True}
+    if dataset_id.startswith("mozilla-foundation/"):
+        # Common Voice uses a loading script and is a gated dataset.
+        kwargs["trust_remote_code"] = True
+    return load_dataset(dataset_id, config, **kwargs)
+
+
+def corpus_probe(
+    language: str, n: int, out_dir, *, loader=None, writer=None
+) -> "list[tuple[RecordingRef, Path]]":
+    """Pull up to `n` distinct-speaker corpus samples; write 16 kHz mono wavs.
+
+    Deduplication by speaker id (VoxPopuli: ``speaker_id``; Common Voice: ``client_id``)
+    ensures each returned recording comes from a different speaker, giving independent
+    samples for the prosody probe.
+
+    Parameters
+    ----------
+    language:
+        One of the eight SEED_LANGUAGES keys.
+    n:
+        Maximum number of distinct-speaker recordings to return.
+    out_dir:
+        Directory in which wavs are written (created if absent).
+    loader:
+        Callable ``(language) -> iterable``; defaults to ``_load_corpus``.
+        Injectable for tests so no network access is required.
+    writer:
+        Callable ``(path, array, sample_rate)``; defaults to ``soundfile.write``.
+        Injectable for tests.
+
+    Returns
+    -------
+    list of ``(RecordingRef, Path)`` pairs, at most `n` entries.
+    """
+    import soundfile as sf
+
+    loader = loader or _load_corpus
+    writer = writer or sf.write
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    speaker_field = _CORPUS_SPEC[language][3]
+
+    pairs: list[tuple[RecordingRef, Path]] = []
+    seen: set[str] = set()
+    for item in loader(language):
+        # Robustly extract speaker id across both dataset shapes.
+        spk = str(
+            item.get(speaker_field)
+            or item.get("speaker_id")
+            or item.get("client_id")
+            or f"spk{len(pairs)}"
+        )
+        if spk in seen:
+            continue
+        seen.add(spk)
+        audio = item["audio"]
+        wav = out_dir / f"corpus_{language}_{len(pairs):02d}.wav"
+        writer(str(wav), audio["array"], audio["sampling_rate"])
+        ref = RecordingRef("corpus", language, spk, "corpus", str(wav))
+        pairs.append((ref, wav))
+        if len(pairs) >= n:
+            break
+    return pairs
