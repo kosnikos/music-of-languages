@@ -16,22 +16,26 @@ WHISPER_MODEL = "whisper-1"
 
 
 def transcribe_language(
-    signal: np.ndarray, sr: int = TARGET_SAMPLE_RATE, *, client=None
+    signal: np.ndarray, sr: int = TARGET_SAMPLE_RATE, *, client=None, max_retries: int = 3
 ) -> tuple[str, str]:
     """Return (detected_language_lowercased, transcript) for `signal`."""
-    if client is None:
-        from openai import OpenAI
-        client = OpenAI()
+    import time
     try:
+        from openai import OpenAI
+        c = client or OpenAI()
         with tempfile.TemporaryDirectory() as tmp:
             wav = Path(tmp) / "seg.wav"
             sf.write(str(wav), signal, sr)
-            with open(wav, "rb") as fh:
-                resp = client.audio.transcriptions.create(
-                    model=WHISPER_MODEL, file=fh, response_format="verbose_json"
-                )
-        lang = (getattr(resp, "language", "") or "").lower()
-        text = (getattr(resp, "text", "") or "").strip()
-        return lang, text
+            for attempt in range(max_retries):
+                try:
+                    with open(wav, "rb") as fh:
+                        resp = c.audio.transcriptions.create(
+                            model=WHISPER_MODEL, file=fh, response_format="verbose_json"
+                        )
+                    return (getattr(resp, "language", "") or "").lower(), (getattr(resp, "text", "") or "").strip()
+                except Exception:
+                    if attempt < max_retries - 1:
+                        time.sleep(1.5 * (attempt + 1))
+        return "", ""
     except Exception:
         return "", ""

@@ -12,12 +12,15 @@ OPENAI_API_KEY in .env. `data/` is gitignored.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import re
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 
 import pandas as pd
 import soundfile as sf
+from dotenv import load_dotenv
 
 from musiclang.clean.select import select_segment
 from musiclang.config import DATA_DIR, SEED_LANGUAGES, TARGET_SAMPLE_RATE
@@ -27,7 +30,9 @@ from musiclang.ingest.manifest import (
 from musiclang.pipeline import clean_clip
 from musiclang.probe import adapters
 from musiclang.probe.core import RecordingRef
+from musiclang.verify.llm_judge import judge_transcript
 from musiclang.verify.verifier import verify_segment
+from musiclang.verify.whisper_id import transcribe_language
 
 
 def _slug(s: str) -> str:
@@ -80,58 +85,122 @@ def _recordings(channel: dict, per_channel: int):
 
 
 def run(per_language=25, sources=("podcast", "radio"), pilot=False,
-        instances_path=None, out_dir=None):
+        instances_path=None, out_dir=None, workers=16, warm=True):
+    load_dotenv()
+
     instances_path = Path(instances_path or DATA_DIR / "source_instances.parquet")
     out_dir = Path(out_dir or DATA_DIR / "segments")
+    out_dir.mkdir(parents=True, exist_ok=True)
     work = DATA_DIR / "_seg_work"; work.mkdir(parents=True, exist_ok=True)
     instances = pd.read_parquet(instances_path)
     target = 1 if pilot else per_language
-    per_channel = 1 if pilot else max(3, per_language // 2)
+    episodes_per_feed = 1 if pilot else max(2, per_language // 4)
 
-    seg_rows, drop_rows = [], []
+    # Build shared OpenAI client (all workers reuse it; avoids per-call construction overhead)
+    client = None
+    try:
+        from openai import OpenAI
+        client = OpenAI()
+    except Exception:
+        pass
+
+    def _verify(seg, sr, lang):
+        return verify_segment(
+            seg, sr, lang,
+            whisper=partial(transcribe_language, client=client),
+            llm_judge=partial(judge_transcript, client=client),
+        )
+
+    # Warm shared model singletons single-threaded before the thread pool
+    if warm:
+        try:
+            from musiclang.verify.tagger import _load_ast; _load_ast()
+        except Exception:
+            pass
+        try:
+            from musiclang.clean.vad import _load_model; _load_model()
+        except Exception:
+            pass
+
+    # Build flat worklist: (language, channel_dict, rec_ref, kind, arg)
+    worklist = []
     for language in SEED_LANGUAGES:
-        kept = 0
-        for ch in _channels_for(language, instances, sources):
-            if kept >= target:
+        channels = _channels_for(language, instances, sources)
+        lang_budget = int(target * 1.6) + 4 if not pilot else target * len(channels) + 4
+        lang_count = 0
+        for ch in channels:
+            if lang_count >= lang_budget:
                 break
-            for rec_ref, kind, arg in _recordings(ch, per_channel):
-                if kept >= target:
+            for rec_ref, kind, arg in _recordings(ch, episodes_per_feed):
+                if lang_count >= lang_budget:
                     break
-                ref = RecordingRef(ch["source"], language, ch["channel_id"], kind, arg)
-                wav = work / f"{language}_{rec_ref}.wav"
-                capture_fn = adapters.CAPTURE_DISPATCH.get(kind)
-                if capture_fn is None or capture_fn(ref, wav) is None:
-                    drop_rows.append({"language": language, "source": ch["source"],
-                                      "channel_id": ch["channel_id"], "recording_ref": rec_ref,
-                                      "reason": "capture-failed", "detail": kind})
-                    continue
-                recorded_at = datetime.now(timezone.utc).isoformat()
-                status, a, b = process_recording(
-                    wav, language=language, source=ch["source"], channel_id=ch["channel_id"],
-                    recording_ref=rec_ref, recorded_at=recorded_at)
-                if status == "kept":
+                worklist.append((language, ch, rec_ref, kind, arg))
+                lang_count += 1
+
+    # Worker job: capture + process; returns (language, source, channel_id, rec_ref, kind, status, a, b)
+    def _job(item):
+        language, ch, rec_ref, kind, arg = item
+        ref = RecordingRef(ch["source"], language, ch["channel_id"], kind, arg)
+        wav = work / f"{language}_{rec_ref}.wav"
+        capture_fn = adapters.CAPTURE_DISPATCH.get(kind)
+        if capture_fn is None or capture_fn(ref, wav) is None:
+            return (language, ch["source"], ch["channel_id"], rec_ref, kind, "drop-capture", None, None)
+        recorded_at = datetime.now(timezone.utc).isoformat()
+        status, a, b = process_recording(
+            wav, language=language, source=ch["source"], channel_id=ch["channel_id"],
+            recording_ref=rec_ref, recorded_at=recorded_at, verify=_verify)
+        return (language, ch["source"], ch["channel_id"], rec_ref, kind, status, a, b)
+
+    # Aggregate results per-language; only main thread touches kept/drops/sf.write
+    kept_by_lang: dict[str, list] = {lang: [] for lang in SEED_LANGUAGES}
+    drop_rows = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_job, item): item for item in worklist}
+        for fut in concurrent.futures.as_completed(futures):
+            try:
+                language, source, channel_id, rec_ref, kind, status, a, b = fut.result()
+            except Exception as exc:
+                # Defensive: job itself raised — treat as error drop (language unknown here)
+                drop_rows.append({"language": "unknown", "source": "unknown",
+                                   "channel_id": "unknown", "recording_ref": "unknown",
+                                   "reason": "error", "detail": str(exc)[:200]})
+                continue
+
+            if status == "drop-capture":
+                drop_rows.append({"language": language, "source": source,
+                                   "channel_id": channel_id, "recording_ref": rec_ref,
+                                   "reason": "capture-failed", "detail": kind})
+                print(f"[drop:capture-failed] {language} {channel_id} {rec_ref}")
+            elif status == "kept":
+                if len(kept_by_lang[language]) < target:
                     seg_path = out_dir / language / f"{a['segment_id']}.wav"
                     seg_path.parent.mkdir(parents=True, exist_ok=True)
                     sf.write(str(seg_path), b, TARGET_SAMPLE_RATE)
                     a["path"] = str(seg_path)
-                    seg_rows.append(a)
-                    kept += 1
-                    print(f"[keep] {language} {a['channel_id']} {rec_ref} ({kept}/{target})")
-                else:
-                    drop_rows.append({"language": language, "source": ch["source"],
-                                      "channel_id": ch["channel_id"], "recording_ref": rec_ref,
-                                      "reason": a, "detail": b})
-                    print(f"[drop:{a}] {language} {ch['channel_id']} {rec_ref}")
-        print(f"=== {language}: {kept}/{target} verified ===")
+                    kept_by_lang[language].append(a)
+                    n = len(kept_by_lang[language])
+                    print(f"[keep] {language} {channel_id} {rec_ref} ({n}/{target})")
+                # else: surplus — ignore (we oversampled)
+            else:  # drop:reason
+                drop_rows.append({"language": language, "source": source,
+                                   "channel_id": channel_id, "recording_ref": rec_ref,
+                                   "reason": a, "detail": b})
+                print(f"[drop:{a}] {language} {channel_id} {rec_ref}")
 
+    # Summary
+    for language in SEED_LANGUAGES:
+        n = len(kept_by_lang[language])
+        print(f"=== {language}: {n}/{target} verified ===")
+
+    seg_rows = [row for lang_rows in kept_by_lang.values() for row in lang_rows]
     seg_df = segments_manifest_dataframe(seg_rows)
     drop_df = drops_dataframe(drop_rows)
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
     suffix = "_pilot" if pilot else ""
-    seg_df.to_parquet(DATA_DIR / f"segments_manifest{suffix}.parquet")
-    drop_df.to_parquet(DATA_DIR / f"segments_drops{suffix}.parquet")
+    seg_df.to_parquet(out_dir / f"segments_manifest{suffix}.parquet")
+    drop_df.to_parquet(out_dir / f"segments_drops{suffix}.parquet")
     print(f"\nWROTE {len(seg_df)} segments, {len(drop_df)} drops "
-          f"({DATA_DIR / f'segments_manifest{suffix}.parquet'})")
+          f"({out_dir / f'segments_manifest{suffix}.parquet'})")
     return seg_df, drop_df
 
 
@@ -142,7 +211,9 @@ if __name__ == "__main__":
     p.add_argument("--sources", type=str, default="podcast,radio")
     p.add_argument("--instances", type=str, default=None)
     p.add_argument("--out", type=str, default=None)
+    p.add_argument("--workers", type=int, default=16)
     args = p.parse_args()
     run(per_language=args.per_language,
         sources=tuple(s.strip() for s in args.sources.split(",") if s.strip()),
-        pilot=args.pilot, instances_path=args.instances, out_dir=args.out)
+        pilot=args.pilot, instances_path=args.instances, out_dir=args.out,
+        workers=args.workers)

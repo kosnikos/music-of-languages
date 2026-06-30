@@ -31,7 +31,10 @@ def test_transcribe_language_failsoft_on_error():
     class Boom:
         audio = SimpleNamespace(transcriptions=SimpleNamespace(
             create=lambda **k: (_ for _ in ()).throw(RuntimeError("api down"))))
-    lang, text = transcribe_language(np.zeros(16_000, dtype=np.float32), client=Boom())
+    # max_retries=1 to keep it instant (no sleeps)
+    lang, text = transcribe_language(
+        np.zeros(16_000, dtype=np.float32), client=Boom(), max_retries=1
+    )
     assert lang == "" and text == ""
 
 
@@ -62,4 +65,7 @@ def test_judge_failclosed_on_api_error():
     class Boom:
         chat = SimpleNamespace(completions=SimpleNamespace(
             parse=lambda **k: (_ for _ in ()).throw(RuntimeError("api down"))))
-    assert judge_transcript("a long enough transcript here", "english", client=Boom()) is False
+    # max_retries=1 to keep it instant (no sleeps)
+    assert judge_transcript(
+        "a long enough transcript here", "english", client=Boom(), max_retries=1
+    ) is False
