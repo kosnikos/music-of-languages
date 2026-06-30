@@ -30,8 +30,7 @@ def verify_segment(
     tagger=None,
     whisper=None,
     llm_judge=None,
-    music_threshold: float = 0.5,
-    speech_threshold: float = 0.3,
+    music_threshold: float = 0.1,
 ) -> Verdict:
     """Label `signal` as target-speech / music / other-language / other.
 
@@ -47,7 +46,10 @@ def verify_segment(
         from musiclang.verify.llm_judge import judge_transcript as llm_judge
 
     scores = tagger(signal, sr)
-    if scores.music >= music_threshold and scores.music > scores.speech:
+    # Keep only genuinely music-free speech: reject if the AST music score reaches the
+    # threshold, regardless of the speech score. A "carpet" (a music bed under a presenter)
+    # scores high on BOTH music and speech and is dropped here; clean speech scores music ~0.00.
+    if scores.music >= music_threshold:
         return Verdict("music", scores.music, "", "", scores.speech, scores.music, "tagger")
 
     lang, text = whisper(signal, sr)
