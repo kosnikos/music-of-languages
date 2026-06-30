@@ -60,3 +60,16 @@ def test_process_recording_never_raises(tmp_path):
     status, reason, detail = collect_segments.process_recording(
         wav, **_META, clean=lambda p: (_ for _ in ()).throw(RuntimeError("bad audio")))
     assert status == "drop" and reason == "error"
+
+
+def test_run_unknown_kind_is_dropped_not_crash(tmp_path):
+    import pandas as pd
+    inst = tmp_path / "instances.parquet"
+    pd.DataFrame([{"source": "radio", "language": "english", "channel_id": "weird-station",
+                   "kind": "weird", "ref": "http://x", "notes": ""}]).to_parquet(inst)
+    # An unknown kind short-circuits before any real capture/network/model call.
+    seg_df, drop_df = collect_segments.run(
+        pilot=True, instances_path=inst, out_dir=tmp_path / "segments")
+    assert len(seg_df) == 0
+    assert (drop_df["reason"] == "capture-failed").any()
+    assert (drop_df["detail"] == "weird").any()

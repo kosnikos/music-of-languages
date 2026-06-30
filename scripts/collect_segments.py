@@ -99,7 +99,8 @@ def run(per_language=25, sources=("podcast", "radio"), pilot=False,
                     break
                 ref = RecordingRef(ch["source"], language, ch["channel_id"], kind, arg)
                 wav = work / f"{language}_{rec_ref}.wav"
-                if adapters.CAPTURE_DISPATCH[kind](ref, wav) is None:
+                capture_fn = adapters.CAPTURE_DISPATCH.get(kind)
+                if capture_fn is None or capture_fn(ref, wav) is None:
                     drop_rows.append({"language": language, "source": ch["source"],
                                       "channel_id": ch["channel_id"], "recording_ref": rec_ref,
                                       "reason": "capture-failed", "detail": kind})
