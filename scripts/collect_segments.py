@@ -88,6 +88,38 @@ def process_recording(
         return ("drop", "error", str(exc)[:200])
 
 
+def _radio_browser_channels(language, *, find_fn=None, limit=20):
+    """Pull up to `limit` radio stations for `language` from radio-browser (live),
+    as channel dicts shaped like the instances rows. Fail-soft -> [] on any error."""
+    if find_fn is None:
+        from musiclang.ingest.radio import find_capital_stations as find_fn
+    from musiclang.config import SEED_LANGUAGES
+    try:
+        spec = SEED_LANGUAGES[language]
+        stations = find_fn(spec.radio_browser_lang, limit=limit)
+    except Exception:
+        return []
+    out = []
+    for st in stations:
+        url = getattr(st, "url", "") or ""
+        if not url:
+            continue
+        kind = "hls" if url.lower().endswith(".m3u8") else "progressive"
+        out.append({"source": "radio", "language": language,
+                    "channel_id": _slug(getattr(st, "name", "") or url),
+                    "kind": kind, "ref": url, "notes": "radio-browser"})
+    return out
+
+
+def _capture_with_retry(capture_fn, ref, wav, *, attempts=2):
+    """Try capture up to `attempts` times; return the Path on success, else None."""
+    for _ in range(attempts):
+        result = capture_fn(ref, wav)
+        if result is not None:
+            return result
+    return None
+
+
 def _channels_for(language: str, instances: pd.DataFrame, sources) -> list[dict]:
     """Per-language channel list from the Workstream-A instances (podcast feeds + radio)."""
     df = instances[(instances["language"] == language) & (instances["source"].isin(sources))]
@@ -104,7 +136,10 @@ def _recordings(channel: dict, per_channel: int):
 
 
 def run(per_language=25, sources=("podcast", "radio"), pilot=False,
-        instances_path=None, out_dir=None, workers=16, warm=True):
+        instances_path=None, out_dir=None, workers=16, warm=True, radio_enum=None,
+        capture_attempts=2):
+    if radio_enum is None:
+        radio_enum = _radio_browser_channels
     load_dotenv()
 
     instances_path = Path(instances_path or DATA_DIR / "source_instances.parquet")
@@ -113,7 +148,7 @@ def run(per_language=25, sources=("podcast", "radio"), pilot=False,
     work = DATA_DIR / "_seg_work"; work.mkdir(parents=True, exist_ok=True)
     instances = pd.read_parquet(instances_path)
     target = 1 if pilot else per_language
-    episodes_per_feed = 1 if pilot else max(2, per_language // 4)
+    episodes_per_feed = 1 if pilot else max(3, per_language // 3)
 
     # Build shared OpenAI client (all workers reuse it; avoids per-call construction overhead)
     client = None
@@ -143,10 +178,14 @@ def run(per_language=25, sources=("podcast", "radio"), pilot=False,
             pass
 
     # Build flat worklist: (language, channel_dict, rec_ref, kind, arg)
-    worklist = []
+    _raw_worklist = []
     for language in SEED_LANGUAGES:
         channels = _channels_for(language, instances, sources)
-        lang_budget = int(target * 1.6) + 4 if not pilot else target * len(channels) + 4
+        if "radio" in sources:
+            static_refs = {ch["ref"] for ch in channels}
+            live = radio_enum(language)
+            channels = channels + [ch for ch in live if ch["ref"] not in static_refs]
+        lang_budget = target * len(channels) + 4 if pilot else int(target * 2.5) + 5
         lang_count = 0
         for ch in channels:
             if lang_count >= lang_budget:
@@ -154,16 +193,21 @@ def run(per_language=25, sources=("podcast", "radio"), pilot=False,
             for rec_ref, kind, arg in _recordings(ch, episodes_per_feed):
                 if lang_count >= lang_budget:
                     break
-                worklist.append((language, ch, rec_ref, kind, arg))
+                _raw_worklist.append((language, ch, rec_ref, kind, arg))
                 lang_count += 1
+    worklist = [(idx, language, ch, rec_ref, kind, arg)
+                for idx, (language, ch, rec_ref, kind, arg) in enumerate(_raw_worklist)]
 
     # Worker job: capture + process; returns (language, source, channel_id, rec_ref, kind, status, a, b)
     def _job(item):
-        language, ch, rec_ref, kind, arg = item
+        idx, language, ch, rec_ref, kind, arg = item
         ref = RecordingRef(ch["source"], language, ch["channel_id"], kind, arg)
-        wav = work / f"{language}_{rec_ref}.wav"
+        wav = work / f"{idx}_{language}_{rec_ref}.wav"
         capture_fn = adapters.CAPTURE_DISPATCH.get(kind)
-        if capture_fn is None or capture_fn(ref, wav) is None:
+        if capture_fn is None:
+            return (language, ch["source"], ch["channel_id"], rec_ref, kind, "drop-capture", None, None)
+        path = _capture_with_retry(capture_fn, ref, wav, attempts=capture_attempts)
+        if path is None:
             return (language, ch["source"], ch["channel_id"], rec_ref, kind, "drop-capture", None, None)
         recorded_at = datetime.now(timezone.utc).isoformat()
         status, a, b = process_recording(

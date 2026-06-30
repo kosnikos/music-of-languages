@@ -1,5 +1,6 @@
 # tests/test_collect_segments.py
 import importlib.util
+import types
 from pathlib import Path
 
 import numpy as np
@@ -70,7 +71,7 @@ def test_run_unknown_kind_is_dropped_not_crash(tmp_path):
     # An unknown kind short-circuits before any real capture/network/model call.
     seg_df, drop_df = collect_segments.run(
         pilot=True, instances_path=inst, out_dir=tmp_path / "segments",
-        warm=False, workers=2)
+        warm=False, workers=2, radio_enum=lambda language: [])
     assert len(seg_df) == 0
     assert (drop_df["reason"] == "capture-failed").any()
     assert (drop_df["detail"] == "weird").any()
@@ -140,6 +141,7 @@ def test_run_parallel_keeps_to_target_and_writes_to_out_dir(tmp_path, monkeypatc
         out_dir=out_dir,
         warm=False,
         workers=4,
+        radio_enum=lambda language: [],
     )
 
     # At most `target` kept per language
@@ -151,3 +153,91 @@ def test_run_parallel_keeps_to_target_and_writes_to_out_dir(tmp_path, monkeypatc
 
     # Drop rows recorded for surplus music drops
     assert len(drop_df) >= 0  # may be 0 if all 4 channels fit within budget; just confirm no crash
+
+
+# --- NEW TESTS (Task 6c) ---
+
+
+def test_radio_browser_channels_maps_stations():
+    fake_st_hls = types.SimpleNamespace(name="Radio HLS", url="http://station.m3u8")
+    fake_st_mp3 = types.SimpleNamespace(name="Radio MP3", url="http://station.mp3")
+
+    def fake_find(lang, limit):
+        return [fake_st_hls, fake_st_mp3]
+
+    result = collect_segments._radio_browser_channels("english", find_fn=fake_find)
+    assert len(result) == 2
+    hls_ch = next(ch for ch in result if ch["ref"].endswith(".m3u8"))
+    mp3_ch = next(ch for ch in result if ch["ref"].endswith(".mp3"))
+    assert hls_ch["kind"] == "hls"
+    assert hls_ch["source"] == "radio"
+    assert hls_ch["channel_id"] != ""
+    assert mp3_ch["kind"] == "progressive"
+    assert mp3_ch["source"] == "radio"
+
+    # fail-soft: find_fn raises -> []
+    result2 = collect_segments._radio_browser_channels("english", find_fn=lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("network error")))
+    assert result2 == []
+
+
+def test_capture_with_retry_retries_then_succeeds(tmp_path):
+    dummy_path = tmp_path / "out.wav"
+    calls = {"n": 0}
+
+    def fake_capture(ref, wav):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None  # first call fails
+        return dummy_path  # second call succeeds
+
+    result = collect_segments._capture_with_retry(fake_capture, "ref", dummy_path, attempts=2)
+    assert result == dummy_path
+    assert calls["n"] == 2
+
+    # always-None: returns None after attempts
+    result2 = collect_segments._capture_with_retry(lambda r, w: None, "ref", dummy_path, attempts=3)
+    assert result2 is None
+
+
+def test_run_includes_radio_browser_channels(tmp_path, monkeypatch):
+    import pandas as pd
+    import soundfile as sf
+    from musiclang.probe import adapters as _adapters
+
+    # A static instances parquet (one podcast channel for english)
+    inst = tmp_path / "instances.parquet"
+    pd.DataFrame([
+        {"source": "podcast", "language": "english", "channel_id": "pod1",
+         "kind": "rss_feed", "ref": "http://feed1", "notes": ""},
+    ]).to_parquet(inst)
+
+    # radio_enum injects one extra radio-browser station
+    def fake_radio_enum(language):
+        return [{"source": "radio", "language": language,
+                 "channel_id": "rb-station", "kind": "progressive",
+                 "ref": "http://rb", "notes": "radio-browser"}]
+
+    # Patch latest_enclosures for podcast feed (returns 0 episodes -> no work from podcast)
+    monkeypatch.setattr(_adapters, "latest_enclosures", lambda ref, n: [])
+
+    # Patch CAPTURE_DISPATCH so "progressive" capture is known but fails (returns None)
+    monkeypatch.setitem(_adapters.CAPTURE_DISPATCH, "progressive", lambda ref, wav: None)
+
+    # Patch process_recording (never called if capture fails)
+    monkeypatch.setattr(collect_segments, "process_recording",
+                        lambda *a, **kw: ("drop", "error", "should not be called"))
+
+    out_dir = tmp_path / "segments"
+    seg_df, drop_df = collect_segments.run(
+        pilot=True,
+        sources=("podcast", "radio"),
+        instances_path=inst,
+        out_dir=out_dir,
+        warm=False,
+        workers=1,
+        radio_enum=fake_radio_enum,
+    )
+
+    # rb-station should appear in the drop log (capture failed, but it was tried)
+    assert (drop_df["channel_id"] == "rb-station").any() or (drop_df["detail"] == "progressive").any(), \
+        f"rb-station not found in drops: {drop_df.to_dict('records')}"
