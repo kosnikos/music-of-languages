@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import re
+import threading
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
@@ -31,12 +32,30 @@ from musiclang.pipeline import clean_clip
 from musiclang.probe import adapters
 from musiclang.probe.core import RecordingRef
 from musiclang.verify.llm_judge import judge_transcript
+from musiclang.verify.tagger import tag_speech_music
 from musiclang.verify.verifier import verify_segment
 from musiclang.verify.whisper_id import transcribe_language
 
 
 def _slug(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "-", str(s)).strip("-")[:48]
+
+
+# All torch model inference — silero VAD inside clean_clip, AST inside tag_speech_music —
+# is serialized through ONE lock. CPU torch forward() is NOT thread-safe across the worker
+# pool: concurrent calls segfault. The slow work (captures + the Whisper/LLM API round-trips)
+# stays fully parallel; the serialized torch parts are a small fraction of wall-clock.
+_TORCH_LOCK = threading.Lock()
+
+
+def _locked_clean(path):
+    with _TORCH_LOCK:
+        return clean_clip(path)
+
+
+def _locked_tagger(signal, sr):
+    with _TORCH_LOCK:
+        return tag_speech_music(signal, sr)
 
 
 def process_recording(
@@ -107,6 +126,7 @@ def run(per_language=25, sources=("podcast", "radio"), pilot=False,
     def _verify(seg, sr, lang):
         return verify_segment(
             seg, sr, lang,
+            tagger=_locked_tagger,
             whisper=partial(transcribe_language, client=client),
             llm_judge=partial(judge_transcript, client=client),
         )
@@ -148,7 +168,7 @@ def run(per_language=25, sources=("podcast", "radio"), pilot=False,
         recorded_at = datetime.now(timezone.utc).isoformat()
         status, a, b = process_recording(
             wav, language=language, source=ch["source"], channel_id=ch["channel_id"],
-            recording_ref=rec_ref, recorded_at=recorded_at, verify=_verify)
+            recording_ref=rec_ref, recorded_at=recorded_at, clean=_locked_clean, verify=_verify)
         return (language, ch["source"], ch["channel_id"], rec_ref, kind, status, a, b)
 
     # Aggregate results per-language; only main thread touches kept/drops/sf.write
