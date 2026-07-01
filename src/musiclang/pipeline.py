@@ -78,3 +78,32 @@ def build_segment_features(
     seg_df = pd.DataFrame(seg_rows).set_index("segment_id")
     feat_df = pd.DataFrame.from_dict(feat_rows, orient="index").sort_index()
     return seg_df, feat_df
+
+
+def build_segment_features_direct(
+    manifest: pd.DataFrame,
+    extractor: FeatureExtractor,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Per-segment features for pre-cleaned 30 s wavs: load -> extract on the WHOLE signal.
+
+    Unlike build_segment_features, this does NOT re-clean (VAD) or window — the input
+    rows are already independent, verified, clean 30 s segments (one per recording).
+    """
+    prov_rows: list[dict] = []
+    feat_rows: dict[str, dict] = {}
+    for _, row in manifest.iterrows():
+        signal = load_audio(row["path"])
+        if len(signal) == 0:
+            continue
+        seg_id = row["segment_id"]
+        prov_rows.append({
+            "segment_id": seg_id,
+            "language": row["language"],
+            "channel_id": row["channel_id"],
+            "source": row.get("source"),
+            "recording_ref": row.get("recording_ref"),
+        })
+        feat_rows[seg_id] = extractor.extract(signal, sr=TARGET_SAMPLE_RATE)
+    prov_df = pd.DataFrame(prov_rows).set_index("segment_id")
+    feat_df = pd.DataFrame.from_dict(feat_rows, orient="index").sort_index()
+    return prov_df, feat_df
