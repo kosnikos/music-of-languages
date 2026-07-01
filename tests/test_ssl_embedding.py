@@ -61,6 +61,17 @@ def test_mean_std_pooling_doubles_dim(monkeypatch):
     assert all(v == 0.0 for v in list(out.values())[6:])  # std of constant = 0
 
 
+def test_extract_layers_one_pass_multi_layer(monkeypatch):
+    _patch(monkeypatch)  # _FakeModel: 4 layers, hidden=6; hidden_states[k] filled with float k
+    ex = SSLEmbeddingExtractor(pooling="mean")
+    out = ex.extract_layers(np.zeros(16_000, dtype=np.float32), sr=16_000, layers=(1, 3, -1))
+    assert set(out) == {1, 3, -1}
+    assert list(out[1]) == [f"emb_{i:03d}" for i in range(6)]
+    assert all(v == 1.0 for v in out[1].values())   # layer 1 filled with 1.0
+    assert all(v == 3.0 for v in out[3].values())    # layer 3 filled with 3.0
+    assert all(v == 3.0 for v in out[-1].values())   # -1 == last == index 3
+
+
 @pytest.mark.slow
 def test_real_xlsr_smoke():
     """Downloads wav2vec2-base (~360MB). Run: uv run pytest -m slow"""
