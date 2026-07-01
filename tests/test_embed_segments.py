@@ -39,3 +39,29 @@ def test_embed_segments_writes_one_parquet_per_layer(tmp_path, monkeypatch):
     # resumable: re-running does not duplicate rows
     embed_segments(manifest, _FakeLayerExtractor(), layers=(12, 16, -1), out_dir=tmp_path)
     assert len(pd.read_parquet(tmp_path / "segment_embeddings_xlsr_l16.parquet")) == 2
+
+
+def test_resumes_only_missing_segment_on_partial_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(embed_mod, "load_audio", lambda path, sr=16_000: np.ones(100, dtype=np.float32))
+
+    class _CountingExtractor:
+        def __init__(self):
+            self.calls = []
+        def extract_layers(self, signal, sr, layers):
+            self.calls.append(True)
+            return {ly: {"emb_000": float(ly), "emb_001": float(len(signal))} for ly in layers}
+
+    manifest = pd.DataFrame([
+        {"segment_id": "a", "path": "a.wav"},
+        {"segment_id": "b", "path": "b.wav"},
+    ])
+    # Fully embed "a" across all layers (so it is "done"); leave "b" absent everywhere.
+    ex = _CountingExtractor()
+    embed_segments(pd.DataFrame([{"segment_id": "a", "path": "a.wav"}]), ex, layers=(12, 16, -1), out_dir=tmp_path)
+    ex2 = _CountingExtractor()
+    embed_segments(manifest, ex2, layers=(12, 16, -1), out_dir=tmp_path)
+    # only "b" should be embedded on the second run
+    assert len(ex2.calls) == 1
+    for ly_tag in ("l12", "l16", "llast"):
+        df = pd.read_parquet(tmp_path / f"segment_embeddings_xlsr_{ly_tag}.parquet")
+        assert set(df.index) == {"a", "b"}

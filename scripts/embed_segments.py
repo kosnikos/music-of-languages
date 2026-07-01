@@ -6,6 +6,7 @@ Run: uv run python -u scripts/embed_segments.py
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -27,6 +28,7 @@ def _layer_filename(layer: int, out_dir: Path = OUT_DIR) -> str:
 
 
 def _already_done(layers, out_dir) -> set[str]:
+    """Return segment_ids present in every layer's cache file (else re-embed)."""
     done: set[str] | None = None
     for ly in layers:
         p = Path(_layer_filename(ly, out_dir))
@@ -35,28 +37,43 @@ def _already_done(layers, out_dir) -> set[str]:
     return done or set()
 
 
-def embed_segments(manifest, extractor, layers=LAYERS, out_dir=OUT_DIR) -> None:
+def _atomic_to_parquet(df: pd.DataFrame, path: Path) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    df.to_parquet(tmp)
+    os.replace(tmp, path)  # atomic on the same filesystem
+
+
+def embed_segments(manifest, extractor, layers=LAYERS, out_dir=OUT_DIR, flush_every: int = 1) -> None:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    # seed from existing caches so prior rows are never lost on rewrite
+    frames: dict[int, pd.DataFrame | None] = {}
+    for ly in layers:
+        p = Path(_layer_filename(ly, out_dir))
+        frames[ly] = pd.read_parquet(p) if p.exists() else None
     done = _already_done(layers, out_dir)
     todo = manifest[~manifest["segment_id"].isin(done)]
-    per_layer: dict[int, list[dict]] = {ly: [] for ly in layers}
+    pending: dict[int, list[dict]] = {ly: [] for ly in layers}
+
+    def flush() -> None:
+        for ly in layers:
+            if not pending[ly]:
+                continue
+            new = pd.DataFrame(pending[ly]).set_index("segment_id")
+            frames[ly] = new if frames[ly] is None else pd.concat([frames[ly], new])
+            frames[ly] = frames[ly][~frames[ly].index.duplicated(keep="first")]
+            _atomic_to_parquet(frames[ly], Path(_layer_filename(ly, out_dir)))
+            pending[ly] = []
+
     for n, (_, row) in enumerate(todo.iterrows(), 1):
         signal = load_audio(row["path"], sr=TARGET_SAMPLE_RATE)
         vecs = extractor.extract_layers(signal, sr=TARGET_SAMPLE_RATE, layers=layers)
         for ly in layers:
-            per_layer[ly].append({"segment_id": row["segment_id"], **vecs[ly]})
+            pending[ly].append({"segment_id": row["segment_id"], **vecs[ly]})
         print(f"[{n}/{len(todo)}] {row['segment_id']}", flush=True)
-    for ly in layers:
-        if not per_layer[ly]:
-            continue
-        new = pd.DataFrame(per_layer[ly]).set_index("segment_id")
-        p = Path(_layer_filename(ly, out_dir))
-        if p.exists():
-            new = pd.concat([pd.read_parquet(p), new])
-            new = new[~new.index.duplicated(keep="first")]
-        new.to_parquet(p)
-        print(f"wrote {p} ({len(new)} rows)", flush=True)
+        if n % flush_every == 0:
+            flush()
+    flush()  # final flush for any remainder
 
 
 def main() -> int:
