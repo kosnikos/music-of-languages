@@ -6,8 +6,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from musiclang.config import TARGET_SAMPLE_RATE
-
 _MIN_TRANSCRIPT = 3  # chars; below this a Whisper transcript is treated as garbage -> tie-break
 
 

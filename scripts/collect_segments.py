@@ -25,9 +25,7 @@ from dotenv import load_dotenv
 
 from musiclang.clean.select import select_segment
 from musiclang.config import DATA_DIR, SEED_LANGUAGES, TARGET_SAMPLE_RATE
-from musiclang.ingest.manifest import (
-    DROPS_COLUMNS, SEGMENTS_COLUMNS, drops_dataframe, segments_manifest_dataframe,
-)
+from musiclang.ingest.manifest import drops_dataframe, segments_manifest_dataframe
 from musiclang.pipeline import clean_clip
 from musiclang.probe import adapters
 from musiclang.probe.core import RecordingRef
@@ -97,18 +95,18 @@ def _radio_browser_channels(language, *, find_fn=None, limit=20):
     try:
         spec = SEED_LANGUAGES[language]
         stations = find_fn(spec.radio_browser_lang, limit=limit)
+        out = []
+        for st in stations:
+            url = getattr(st, "url", "") or ""
+            if not url:
+                continue
+            kind = "hls" if url.lower().endswith(".m3u8") else "progressive"
+            out.append({"source": "radio", "language": language,
+                        "channel_id": _slug(getattr(st, "name", "") or url),
+                        "kind": kind, "ref": url, "notes": "radio-browser"})
+        return out
     except Exception:
         return []
-    out = []
-    for st in stations:
-        url = getattr(st, "url", "") or ""
-        if not url:
-            continue
-        kind = "hls" if url.lower().endswith(".m3u8") else "progressive"
-        out.append({"source": "radio", "language": language,
-                    "channel_id": _slug(getattr(st, "name", "") or url),
-                    "kind": kind, "ref": url, "notes": "radio-browser"})
-    return out
 
 
 def _capture_with_retry(capture_fn, ref, wav, *, attempts=2):
