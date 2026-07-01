@@ -61,6 +61,8 @@ def bootstrap_metric_ci(
     feat_df, prov_df, metric_fn: Callable, method,
     n_boot: int = 1000, seed: int = 0, weighting: str = "channel", ci: float = 95,
 ) -> dict:
+    if method not in ("prosody", "ssl"):
+        raise ValueError(f"method must be 'prosody' or 'ssl', got {method!r}")
     rng = np.random.default_rng(seed)
     by_lang = {lang: list(grp.index) for lang, grp in prov_df.groupby("language")}
     vals: list[float] = []
@@ -78,6 +80,8 @@ def bootstrap_metric_ci(
         if not np.isnan(v):
             vals.append(v)
     arr = np.array(vals, dtype=float)
+    if arr.size == 0:
+        raise RuntimeError(f"all {n_boot} bootstrap resamples failed for the metric (n=0)")
     lo = float(np.percentile(arr, (100 - ci) / 2))
     hi = float(np.percentile(arr, 100 - (100 - ci) / 2))
     return {"point": float(np.median(arr)), "lo": lo, "hi": hi, "n": int(arr.size)}
