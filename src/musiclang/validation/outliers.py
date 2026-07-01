@@ -11,6 +11,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
+
+from musiclang.proximity.distance import standardize
 
 _MAD_TO_SIGMA = 0.6744897501960817  # Phi^-1(0.75): scales MAD to a std-equivalent
 
@@ -63,3 +66,50 @@ class CentroidMADDetector(OutlierDetector):
             return OutlierResult(np.zeros(n), np.zeros(n, dtype=bool), self.threshold)
         z = _MAD_TO_SIGMA * (dist - med) / mad
         return OutlierResult(z, z > self.threshold, self.threshold)  # upper tail: far from centroid
+
+
+class IsolationForestDetector(OutlierDetector):
+    def __init__(self, contamination="auto", seed: int = 0) -> None:
+        self.contamination = contamination
+        self.seed = seed
+
+    @property
+    def name(self) -> str:
+        return "isolation_forest"
+
+    def flag(self, X: np.ndarray) -> OutlierResult:
+        from sklearn.ensemble import IsolationForest
+
+        X = np.asarray(X, dtype=float)
+        clf = IsolationForest(contamination=self.contamination, random_state=self.seed)
+        pred = clf.fit_predict(X)          # -1 outlier, 1 inlier
+        scores = -clf.score_samples(X)     # higher = more anomalous
+        return OutlierResult(scores, pred == -1, float("nan"))
+
+
+def detect_language_outliers(
+    feat_df: pd.DataFrame,
+    labels: dict[str, str],
+    detector: OutlierDetector,
+    space: str,
+) -> pd.DataFrame:
+    """Run `detector` per language in the given feature `space` ('prosody'|'ssl')."""
+    if space not in ("prosody", "ssl"):
+        raise ValueError(f"space must be 'prosody' or 'ssl', got {space!r}")
+    rows: list[dict] = []
+    for lang in sorted(set(labels.values())):
+        ids = [i for i in feat_df.index if labels.get(i) == lang]
+        if len(ids) < 3:
+            rows += [{"segment_id": s, "language": lang, "detector": detector.name,
+                      "space": space, "score": float("nan"), "is_outlier": False} for s in ids]
+            continue
+        sub = feat_df.loc[ids]
+        if space == "prosody":
+            X = standardize(sub).to_numpy(dtype=float)
+        else:
+            X = sub[[c for c in sub.columns if c.startswith("emb_")]].to_numpy(dtype=float)
+        res = detector.flag(X)
+        for s, score, is_out in zip(ids, res.scores, res.is_outlier):
+            rows.append({"segment_id": s, "language": lang, "detector": detector.name,
+                         "space": space, "score": float(score), "is_outlier": bool(is_out)})
+    return pd.DataFrame(rows)
