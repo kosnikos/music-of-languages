@@ -53,5 +53,16 @@ def test_build_segment_features_direct_no_reclean(monkeypatch):
     assert prov_df.loc["english_seg01", "language"] == "english"
     assert prov_df.loc["english_seg01", "channel_id"] == "BBC"
     assert prov_df.loc["english_seg01", "source"] == "podcast"
+    assert prov_df.loc["english_seg01", "recording_ref"] == "ep1"
+    assert set(feat_df.columns) == {"f0", "n"}
     assert feat_df.loc["english_seg01", "n"] == 16_000  # whole signal, not a 1s window
     assert len(feat_df) == 1  # exactly one row per segment
+
+
+def test_build_segment_features_direct_empty_manifest():
+    manifest = pd.DataFrame(columns=["segment_id", "language", "channel_id", "path"])
+    prov_df, feat_df = build_segment_features_direct(manifest, _FakeExtractor())
+    assert len(prov_df) == 0
+    assert prov_df.index.name == "segment_id"
+    assert list(prov_df.columns) == ["language", "channel_id", "source", "recording_ref"]
+    assert len(feat_df) == 0

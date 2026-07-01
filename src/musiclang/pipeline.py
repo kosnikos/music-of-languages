@@ -104,6 +104,8 @@ def build_segment_features_direct(
             "recording_ref": row.get("recording_ref"),
         })
         feat_rows[seg_id] = extractor.extract(signal, sr=TARGET_SAMPLE_RATE)
-    prov_df = pd.DataFrame(prov_rows).set_index("segment_id")
+    prov_df = pd.DataFrame(
+        prov_rows, columns=["segment_id", "language", "channel_id", "source", "recording_ref"]
+    ).set_index("segment_id")
     feat_df = pd.DataFrame.from_dict(feat_rows, orient="index").sort_index()
     return prov_df, feat_df
