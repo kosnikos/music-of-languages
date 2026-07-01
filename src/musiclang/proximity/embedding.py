@@ -17,10 +17,11 @@ def language_centroids(
     group: str = "language",
     recording_col: str = "clip_id",
     weighting: str = "recording",
+    channel_col: str = "channel_id",
 ) -> pd.DataFrame:
     """L2-normalize each segment embedding, then average into per-`group` centroids."""
-    if weighting not in ("recording", "flat"):
-        raise ValueError(f"weighting must be 'recording' or 'flat', got {weighting!r}")
+    if weighting not in ("recording", "flat", "channel"):
+        raise ValueError(f"weighting must be 'recording', 'flat', or 'channel', got {weighting!r}")
     emb_cols = [c for c in emb_df.columns if c.startswith("emb_")]
     x = emb_df[emb_cols].to_numpy(dtype=float)
     norms = np.linalg.norm(x, axis=1, keepdims=True)
@@ -29,7 +30,10 @@ def language_centroids(
     unit[emb_cols] = x / norms
     if weighting == "flat":
         cent = unit.groupby(group)[emb_cols].mean()
-    else:
+    elif weighting == "recording":
         per_rec = unit.groupby([group, recording_col])[emb_cols].mean()
         cent = per_rec.groupby(level=0).mean()
+    else:  # channel
+        per_chan = unit.groupby([group, channel_col])[emb_cols].mean()
+        cent = per_chan.groupby(level=0).mean()
     return cent.sort_index()
