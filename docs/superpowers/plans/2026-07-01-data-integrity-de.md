@@ -208,13 +208,22 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test**
 
-`tests/test_embed_segments.py`:
+`tests/test_embed_segments.py` — load the script module via importlib (repo convention; there is no `scripts/` package — see `tests/test_collect_segments.py`), monkeypatch on the module object:
 
 ```python
+import importlib.util
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
-from scripts.embed_segments import embed_segments, _layer_filename
+_SPEC = importlib.util.spec_from_file_location(
+    "embed_segments", Path(__file__).resolve().parents[1] / "scripts" / "embed_segments.py"
+)
+embed_mod = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(embed_mod)
+embed_segments = embed_mod.embed_segments
+_layer_filename = embed_mod._layer_filename
 
 
 class _FakeLayerExtractor:
@@ -229,7 +238,7 @@ def test_layer_filename():
 
 
 def test_embed_segments_writes_one_parquet_per_layer(tmp_path, monkeypatch):
-    monkeypatch.setattr("scripts.embed_segments.load_audio",
+    monkeypatch.setattr(embed_mod, "load_audio",
                         lambda path, sr=16_000: np.ones(100, dtype=np.float32))
     manifest = pd.DataFrame([
         {"segment_id": "en_1", "path": "a.wav"},
@@ -248,7 +257,7 @@ def test_embed_segments_writes_one_parquet_per_layer(tmp_path, monkeypatch):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_embed_segments.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'scripts.embed_segments'`
+Expected: ERROR at collection — `FileNotFoundError` (the importlib loader can't exec `scripts/embed_segments.py`, which doesn't exist yet)
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -327,7 +336,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-Ensure `scripts/` is importable: it needs `scripts/__init__.py` (create empty if the repo doesn't have one — check first; the collector `scripts/collect_segments.py` exists so it likely does).
+No `scripts/__init__.py` is needed — tests load the module by file path via importlib (repo convention), so `scripts/` stays a plain directory of executable scripts.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -368,13 +377,20 @@ Run it as a background process; monitor its `-u` progress. It must complete (all
 
 - [ ] **Step 1: Write the failing test**
 
-`tests/test_build_segment_prosody.py`:
+`tests/test_build_segment_prosody.py` — load the script module via importlib (repo convention; no `scripts/` package):
 
 ```python
+import importlib.util
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
-from scripts import build_segment_prosody as bsp
+_SPEC = importlib.util.spec_from_file_location(
+    "build_segment_prosody", Path(__file__).resolve().parents[1] / "scripts" / "build_segment_prosody.py"
+)
+bsp = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(bsp)
 
 
 class _FakeExtractor:
@@ -402,7 +418,7 @@ def test_build_writes_prosody_and_provenance(tmp_path, monkeypatch):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_build_segment_prosody.py -v`
-Expected: FAIL — `ModuleNotFoundError` / `AttributeError: module has no attribute 'build'`
+Expected: ERROR at collection — `FileNotFoundError` (`scripts/build_segment_prosody.py` doesn't exist yet)
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -1095,13 +1111,21 @@ Figures: dendrogram (`linkage_matrix`) + language MDS (`mds_2d`, 8 langs) colore
 
 - [ ] **Step 1: Write the failing smoke test**
 
-`tests/test_run_data_integrity.py`:
+`tests/test_run_data_integrity.py` — load the script module via importlib (repo convention; no `scripts/` package):
 
 ```python
+import importlib.util
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
-from scripts.run_data_integrity import assemble_report
+_SPEC = importlib.util.spec_from_file_location(
+    "run_data_integrity", Path(__file__).resolve().parents[1] / "scripts" / "run_data_integrity.py"
+)
+rdi = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(rdi)
+assemble_report = rdi.assemble_report
 
 
 def _synth():
@@ -1131,7 +1155,7 @@ def test_assemble_report_has_expected_structure():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_run_data_integrity.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'scripts.run_data_integrity'`
+Expected: ERROR at collection — `FileNotFoundError` (`scripts/run_data_integrity.py` doesn't exist yet)
 
 - [ ] **Step 3: Write the implementation**
 
