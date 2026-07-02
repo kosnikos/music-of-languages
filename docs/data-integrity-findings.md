@@ -286,4 +286,5 @@ here — gap, silhouette, Mantel r, bootstrap CI, LOSO, …),
 confound this phase re-tested), `docs/data-integrity-phase.md` (phase brief),
 `docs/source-evaluation.md` (Workstream A), `docs/superpowers/specs/2026-07-01-data-integrity-de-design.md`
 (D+E design). Reproduce: `uv run python scripts/run_data_integrity.py` →
-`data/data_integrity_results.json` + `docs/figures/data-integrity/`.*
+`data/data_integrity_results.json` + `docs/figures/data-integrity/`. Interactive:
+`notebooks/05_data_integrity.ipynb` (loads the results, redraws the plots live, opt-in full recompute).*
