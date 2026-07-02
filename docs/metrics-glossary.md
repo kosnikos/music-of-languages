@@ -199,6 +199,18 @@ Treating **correlated** measurements as if they were independent — e.g. many 3
 ### G1. Multidimensional scaling (MDS)
 Places the items in 2-D so that their on-screen distances reproduce the high-dimensional distance
 matrix as faithfully as possible — a faithful *map* of the distances, purely for the eye.
+- **The 2 axes are synthesized coordinates, not original features.** They have no intrinsic meaning,
+  and the map can be rotated / reflected / rescaled freely — read *neighbours and clusters*, not axis
+  values. MDS does **not** pick 2 of the input dimensions; it compresses **all** of them (here: 16
+  prosody scalars, or 1024 SSL embedding dims) down to 2 via the distance matrix.
+- **MDS vs PCA.** PCA keeps the top variance directions of a *coordinate* matrix and gives
+  interpretable, variance-ranked axes — natural for Euclidean features (on Euclidean distances PCA ≈
+  classical MDS). But PCA assumes Euclidean geometry, so it doesn't honour a **cosine** distance
+  unless the vectors are L2-normalized first. When the analysis is defined by a chosen distance
+  (cosine for the SSL embeddings), MDS-on-the-precomputed-distance keeps the picture consistent with
+  that distance; PCA is a reasonable cross-check for the Euclidean/prosody view.
+- **Metric vs classical.** This project uses *metric* MDS (SMACOF, which iteratively minimizes stress),
+  not eigen-decomposition-based classical MDS/PCoA; both aim at the same "faithful map" goal.
 - **Here:** the language MDS (8 points) and the segment MDS (178 points, coloured by language vs
   channel) in §6 of the findings.
 - **Link:** https://en.wikipedia.org/wiki/Multidimensional_scaling

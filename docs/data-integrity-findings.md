@@ -14,7 +14,8 @@ Every number below traces to `data/data_integrity_results.json` (produced by
 `data/segments/segments_manifest_final.parquet` — 178 verified, independent, clean 30 s speech
 segments across 59 channels (Workstreams A–C; gitignored). Feature caches:
 `data/segment_features_prosody.parquet` (16 prosody scalars) and
-`data/segment_embeddings_xlsr_l{12,16,last}.parquet` (XLS-R-300m, mean-pooled).
+`data/segment_embeddings_xlsr_l{12,16,last}.parquet` (XLS-R-300m, mean-pooled — **1024 dimensions per
+segment**, the same width at every layer; see §7).
 
 ---
 
@@ -192,6 +193,20 @@ These are **interim** and honestly weak in absolute terms (8 nodes, near-zero-to
 silhouettes) — read them as *directional structure*, not a settled tree. The segment-level panel is
 the point: segments now group visibly more by language than the Phase-0.5 station-dominated scatter.
 
+**Reading the MDS plots — what the axes are.** The two axes (`mds_x`, `mds_y`) are **not feature
+dimensions** and have no intrinsic meaning. Metric MDS takes the full pairwise **distance matrix** and
+finds a 2-D placement whose on-screen distances reproduce it as closely as possible (minimizing
+"stress"); only *relative positions and neighbours* are meaningful, and the picture can be freely
+rotated / reflected / rescaled without changing what it says. So we do **not** select 2 of the
+underlying dimensions — MDS *synthesizes* 2 coordinates from **all** of them (prosody = **16**
+scalars; SSL = **1024** per segment — see §7). **PCA vs MDS:** for the prosody / standardized-euclidean
+view PCA is a sensible alternative (its axes are variance-ranked and interpretable via loadings, and
+on euclidean distances PCA ≈ classical MDS); but the SSL geometry is **cosine**, so
+MDS-on-the-precomputed-distance keeps the plot consistent with the exact distance every other metric
+here uses, whereas PCA would first need the embeddings L2-normalized to respect it. (Our MDS is
+*metric* MDS via SMACOF, not eigen-based classical MDS.) Trying PCA on the prosody view as a
+cross-check is a cheap Phase-1 follow-up. See `docs/metrics-glossary.md` §G1.
+
 ---
 
 ## 7. Layer sensitivity (cheap — pooled from one forward pass)
@@ -209,6 +224,18 @@ structure (−0.023); layer **16** is the best balance (positive rhythm silhouet
 language > station); the **last** layer collapses the geometry (tiny gaps, strongly negative
 silhouettes) — consistent with Phase-0.5's finding that late layers carry pretraining-objective
 structure rather than phonetic/prosodic substrate. Layer 16 is the defensible headline.
+
+**What a "layer" is — depth, not width.** XLS-R is a stack of ~24 transformer blocks; "layer 16" means
+we read the hidden state **after the 16th block** — it does **not** mean 16 dimensions. Every block
+outputs a vector of the **same width = the model's hidden size (1024** for XLS-R-300m), so layers 12,
+16 and last each yield a **1024-dim** vector per frame (→ 1024 after mean-pooling over the 30 s). The
+layer index selects *how much of the network's processing* has been applied, not the dimensionality —
+so "layer sensitivity" here is how the **scores** move as we read from different depths, at a constant
+1024-dim width. Layers differ in *what* they encode: mid layers (12–16) carry more phonetic/prosodic
+substrate (better for rhythm/typology), while late layers drift toward the masked-prediction
+pretraining objective (why the last layer's geometry collapses above). (The "16 → 16 dimensions"
+intuition would fit something like PCA, where you keep *k* components; here the width is fixed by the
+model, independent of which layer you read.)
 
 ---
 
