@@ -22,6 +22,23 @@ def aggregate_language(clip_vectors: list[dict[str, float]]) -> dict[str, float]
     return out
 
 
+def aggregate_language_robust(clip_vectors: list[dict[str, float]]) -> dict[str, float]:
+    """Per-feature median + MAD + IQR across clips, ignoring NaNs (robust vs aggregate_language)."""
+    keys = sorted({k for v in clip_vectors for k in v})
+    out: dict[str, float] = {}
+    for k in keys:
+        values = np.array([v.get(k, np.nan) for v in clip_vectors], dtype=float)
+        values = values[~np.isnan(values)]
+        if values.size == 0:
+            out[f"{k}_median"] = out[f"{k}_mad"] = out[f"{k}_iqr"] = np.nan
+        else:
+            med = float(np.median(values))
+            out[f"{k}_median"] = med
+            out[f"{k}_mad"] = float(np.median(np.abs(values - med)))
+            out[f"{k}_iqr"] = float(np.percentile(values, 75) - np.percentile(values, 25))
+    return out
+
+
 def build_language_table(
     per_language: dict[str, list[dict[str, float]]]
 ) -> pd.DataFrame:

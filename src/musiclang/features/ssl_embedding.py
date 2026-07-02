@@ -14,6 +14,7 @@ is configurable and swept rather than fixed (see the cycle spec, §3.1).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import lru_cache
 
 import librosa
@@ -74,3 +75,31 @@ class SSLEmbeddingExtractor(FeatureExtractor):
             pooled = torch.cat([hidden.mean(dim=0), hidden.std(dim=0)])
         vec = pooled.detach().cpu().numpy().astype(float)
         return {f"emb_{i:03d}": float(x) for i, x in enumerate(vec)}
+
+    def extract_layers(
+        self,
+        signal: np.ndarray,
+        sr: int = TARGET_SAMPLE_RATE,
+        layers: Sequence[int] = (12, 16, -1),
+    ) -> dict[int, FeatureVector]:
+        """Pool several hidden layers from ONE forward pass. {layer: FeatureVector}."""
+        import torch
+
+        feat, model = _load_model(self.model_id, self.device)
+        model_sr = int(getattr(feat, "sampling_rate", TARGET_SAMPLE_RATE))
+        if sr != model_sr:
+            signal = librosa.resample(signal.astype(np.float32), orig_sr=sr, target_sr=model_sr)
+        inputs = feat(signal, sampling_rate=model_sr, return_tensors="pt")
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        with torch.no_grad():
+            out = model(**inputs, output_hidden_states=True)
+        result: dict[int, FeatureVector] = {}
+        for layer in layers:
+            hidden = out.hidden_states[layer].squeeze(0)  # (T, H)
+            if self.pooling == "mean":
+                pooled = hidden.mean(dim=0)
+            else:
+                pooled = torch.cat([hidden.mean(dim=0), hidden.std(dim=0)])
+            vec = pooled.detach().cpu().numpy().astype(float)
+            result[layer] = {f"emb_{i:03d}": float(x) for i, x in enumerate(vec)}
+        return result

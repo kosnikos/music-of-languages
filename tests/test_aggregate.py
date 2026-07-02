@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from musiclang.features import aggregate
+from musiclang.features.aggregate import aggregate_language_robust
 
 
 def test_aggregate_language_mean_and_std_ignore_nan():
@@ -28,3 +29,11 @@ def test_build_language_table_shape_and_index():
     assert list(df.index) == ["english", "french"]
     assert df.loc["english", "a_mean"] == 2.0
     assert df.loc["french", "a_mean"] == 6.0
+
+
+def test_aggregate_language_robust_resists_outlier():
+    vecs = [{"npvi_v": 50.0}, {"npvi_v": 52.0}, {"npvi_v": 54.0}, {"npvi_v": 1000.0}]
+    out = aggregate_language_robust(vecs)
+    assert out["npvi_v_median"] == 53.0     # (52+54)/2, unaffected by 1000
+    assert out["npvi_v_mad"] == 2.0         # median(|x-53|) = median([3,1,1,947]) = 2
+    assert "npvi_v_iqr" in out
