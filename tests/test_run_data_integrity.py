@@ -29,8 +29,24 @@ def _synth():
 
 def test_assemble_report_has_expected_structure():
     pros, emb16, prov = _synth()
-    rep = assemble_report(pros, emb16, prov, phase05={"language_gap": 0.0125, "station_gap": 0.0491})
+    rep = assemble_report(pros, emb16, prov, phase05={"language_gap": 0.0125, "station_gap": 0.0491},
+                           mantel_permutations=50)
     for method in ("prosody", "ssl"):
         assert "confound" in rep[method]
         assert {"full", "excluded", "delta"} <= set(rep[method]["metrics"])
     assert rep["prosody"]["confound"]["phase05"]["station_gap"] == 0.0491
+
+
+def test_within_between_uses_rhythm_class_not_degenerate():
+    """`within_between` must key off RHYTHM_CLASS (shared classes), not per-language identity
+    labels — with identity labels every language is its own singleton class, so `within` is
+    always empty and `gap`/`ratio` are always NaN (degenerate). english/polish are both
+    'stress' in RHYTHM_CLASS, so a real within-class pair exists and `gap` should be finite.
+    """
+    pros, emb16, prov = _synth()
+    rep = assemble_report(pros, emb16, prov, phase05={"language_gap": 0.0125, "station_gap": 0.0491},
+                           mantel_permutations=50)
+    for method in ("prosody", "ssl"):
+        wb = rep[method]["metrics"]["full"]["within_between"]
+        assert np.isfinite(wb["within_mean"])
+        assert np.isfinite(wb["gap"])
