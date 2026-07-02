@@ -253,7 +253,9 @@ structure rather than phonetic/prosodic substrate. Layer 16 is the defensible he
 
 ---
 
-*Companion documents: `docs/feature-exploration-findings.md` (Phase 0.5 — the motivation + the
+*Companion documents: `docs/metrics-glossary.md` (plain-language explanation of every statistic used
+here — gap, silhouette, Mantel r, bootstrap CI, LOSO, …),
+`docs/feature-exploration-findings.md` (Phase 0.5 — the motivation + the
 confound this phase re-tested), `docs/data-integrity-phase.md` (phase brief),
 `docs/source-evaluation.md` (Workstream A), `docs/superpowers/specs/2026-07-01-data-integrity-de-design.md`
 (D+E design). Reproduce: `uv run python scripts/run_data_integrity.py` →
