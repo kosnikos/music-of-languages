@@ -172,9 +172,9 @@ The project's first real "language proximity" pictures — dendrogram (Ward link
 the 8 languages, coloured by rhythm class and annotated by family, for both methods; plus a
 segment-level MDS of all 178 segments coloured by language and by channel (the visual confound story).
 
-> **The figures are generated artifacts**, gitignored under `docs/figures/` per the project's
-> regenerable-figures convention (Phase 0.5 committed none). Regenerate with
-> `uv run python scripts/run_data_integrity.py`; the embeds below render from the local build.
+> **The three figures below are committed** under `docs/figures/data-integrity/` as this phase's
+> deliverable artifact (force-added; the `figures/` directory is otherwise gitignored per the
+> project convention). Regenerate them with `uv run python scripts/run_data_integrity.py`.
 
 **XLS-R (layer 16):**
 
