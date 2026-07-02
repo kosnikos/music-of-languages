@@ -57,11 +57,15 @@ def _l2_normalize(emb_df: pd.DataFrame) -> pd.DataFrame:
     return unit
 
 
-def _segment_confound(seg_dist: pd.DataFrame, prov_df: pd.DataFrame, phase05: dict) -> dict:
+def _segment_confound(seg_dist: pd.DataFrame, prov_df: pd.DataFrame, phase05: dict | None) -> dict:
+    """`phase05` is only attached when given (not None): it's the Phase-0.5 SSL-cosine
+    baseline, comparable only to the ssl confound geometry — callers pass None for prosody.
+    """
     lang = prov_df["language"].to_dict()
     stat = prov_df["channel_id"].to_dict()
     rep = confound_report(seg_dist, lang, stat)
-    rep["phase05"] = phase05
+    if phase05 is not None:
+        rep["phase05"] = phase05
     return rep
 
 
@@ -163,7 +167,7 @@ def confound_gap_loso(feat_df: pd.DataFrame, prov_df: pd.DataFrame, method: str,
         keep = [i for i in feat_df.index if i not in set(grp.index)]
         sub_feat, sub_prov = feat_df.loc[keep], prov_df.loc[keep]
         seg_dist = _seg_dist(sub_feat, method)
-        rep = _segment_confound(seg_dist, sub_prov, phase05)
+        rep = _segment_confound(seg_dist, sub_prov, phase05 if method == "ssl" else None)
         rows.append({"channel_id": chan, "language_gap": rep["language_gap"], "station_gap": rep["station_gap"]})
     df = pd.DataFrame(rows)
     return {
@@ -183,7 +187,7 @@ def confound_gap_loso(feat_df: pd.DataFrame, prov_df: pd.DataFrame, method: str,
 def _method_report(feat_df: pd.DataFrame, prov_df: pd.DataFrame, method: str, phase05: dict,
                     outlier_ids: set[str], mantel_permutations: int = DEFAULT_MANTEL_PERMUTATIONS) -> dict:
     seg_dist = _seg_dist(feat_df, method)
-    confound = _segment_confound(seg_dist, prov_df, phase05)
+    confound = _segment_confound(seg_dist, prov_df, phase05 if method == "ssl" else None)
 
     langs = sorted(prov_df["language"].unique())
     full_dist = proximity_pipeline(feat_df, prov_df, method=method)
@@ -310,7 +314,7 @@ def write_results(rep: dict, results_path: Path = RESULTS_PATH, outliers_path: P
     Path(results_path).parent.mkdir(parents=True, exist_ok=True)
     with open(results_path, "w", encoding="utf-8") as f:
         # allow_nan=False: _to_native should have already replaced every NaN with None; this
-        # turns any we missed into a loud TypeError instead of silently-invalid JSON.
+        # turns any we missed into a loud ValueError instead of silently-invalid JSON.
         json.dump(_to_native(rep), f, indent=2, allow_nan=False)
 
 

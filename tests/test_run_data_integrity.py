@@ -34,7 +34,8 @@ def test_assemble_report_has_expected_structure():
     for method in ("prosody", "ssl"):
         assert "confound" in rep[method]
         assert {"full", "excluded", "delta"} <= set(rep[method]["metrics"])
-    assert rep["prosody"]["confound"]["phase05"]["station_gap"] == 0.0491
+    assert rep["ssl"]["confound"]["phase05"]["station_gap"] == 0.0491
+    assert "phase05" not in rep["prosody"]["confound"]
 
 
 def test_within_between_uses_rhythm_class_not_degenerate():
@@ -50,3 +51,17 @@ def test_within_between_uses_rhythm_class_not_degenerate():
         wb = rep[method]["metrics"]["full"]["within_between"]
         assert np.isfinite(wb["within_mean"])
         assert np.isfinite(wb["gap"])
+
+
+def test_to_native_converts_numpy_and_nan():
+    """`_to_native` (the JSON-safety layer) must unwrap numpy scalars to native Python and
+    turn NaN into None, recursively through dicts/lists — see its docstring.
+    """
+    val = rdi._to_native(np.float64(1.5))
+    assert val == 1.5
+    assert type(val) is float
+
+    assert rdi._to_native(float("nan")) is None
+
+    nested = rdi._to_native({"a": np.float64(2.0), "b": [float("nan"), 3.0]})
+    assert nested == {"a": 2.0, "b": [None, 3.0]}
